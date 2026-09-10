@@ -1,0 +1,10 @@
+@if (Href is "")
+{
+  <button @attributes="AdditionalAttributes" class="@Css">@ChildContent</button>
+}
+else
+{
+  <NavLink href="@Href" Match="NavLinkMatch.All" class="@Css" ActiveClass="@SelectedClass">
+    @ChildContent
+  </NavLink>
+}
