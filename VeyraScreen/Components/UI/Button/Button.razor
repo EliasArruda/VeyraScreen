@@ -1,10 +1,38 @@
-@if (Href is "")
+@using Blazicons
+
+@if (string.IsNullOrWhiteSpace(Href))
 {
-  <button @attributes="AdditionalAttributes" class="@Css">@ChildContent</button>
+  <button @attributes="AdditionalAttributes" class="@Css">
+
+    @if (Icon is not null && IconPosition == ButtonIconPosition.Left)
+    {
+      <Blazicon Svg="@Icon" />
+    }
+
+    @ChildContent
+
+    @if (Icon is not null && IconPosition == ButtonIconPosition.Right)
+    {
+      <Blazicon Svg="@Icon" />
+    }
+
+  </button>
 }
 else
 {
   <NavLink href="@Href" Match="NavLinkMatch.All" class="@Css" ActiveClass="@SelectedClass">
+
+    @if (Icon is not null && IconPosition == ButtonIconPosition.Left)
+    {
+      <Blazicon Svg="@Icon" />
+    }
+
     @ChildContent
+
+    @if (Icon is not null && IconPosition == ButtonIconPosition.Right)
+    {
+      <Blazicon Svg="@Icon" />
+    }
+
   </NavLink>
 }

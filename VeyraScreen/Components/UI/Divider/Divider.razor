@@ -1,0 +1,10 @@
+<div class="flex items-center gap-3 w-full">
+  <hr class="flex-1 border-border" />
+  <span class="text-sm text-muted-foreground">@Text</span>
+  <hr class="flex-1 border-border" />
+</div>
+
+@code {
+  [Parameter]
+  public string Text { get; set; } = string.Empty;
+}
