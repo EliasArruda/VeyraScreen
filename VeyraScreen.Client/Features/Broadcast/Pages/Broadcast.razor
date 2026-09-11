@@ -1,2 +1,54 @@
 @page "/Broadcast"
+@using VeyraScreen.Client.Features.Broadcast.Components
+@inject IJSRuntime JS
 @rendermode InteractiveAuto
+
+<div class="w-full h-full flex items-center justify-center flex-col">
+  <div class="flex flex-col size-1/2 p-6 border border-border gap-4">
+    <article class="flex flex-row items-center justify-between">
+      <div class="flex flex-col leading-tight">
+        <span class="font-sans font-bold text-2xl tracking-wider">Ready to share?</span>
+        <span class="text-muted-foreground text-sm leading-relaxed">Configure stream parameters before
+          broadcasting</span>
+        </div>
+        <div>
+          <div class="flex justify-center text-center items-center gap-2 font-bold text-xl">
+            <p class="bg-primary size-2 rounded-full animate-pulse duration-150"></p>
+            <span class="font-medium font-mono text-primary text-sm">DEVICE_READY</span>
+          </div>
+        </div>
+
+      </article>
+
+      <section class="w-full h-full flex flex-row gap-4">
+        <CardBroadcast Label="Quality" Icon="Lucide.MonitorPlay" Options="ResolutionOptions" />
+        <CardBroadcast Label="FrameRate" Icon="Lucide.Gauge" Options="FrameRateOptions" />
+        <CardBroadcast Label="Audio" Icon="Lucide.Mic" Options="AudioOptions" />
+      </section>
+    </div>
+  </div>
+
+
+@code {
+  private Dictionary<string, string> ResolutionOptions = new()
+  {
+    {"720", "720p"},
+    {"1080", "1080p"},
+    {"1440", "1440p"},
+    {"2160", "4K"},
+  };
+
+  private Dictionary<string, string> FrameRateOptions = new()
+  {
+    {"30", "30 FPS"},
+    {"60", "60 FPS"},
+    {"120", "120 FPS"},
+    {"240", "240 FPS"},
+  };
+
+  private Dictionary<string, string> AudioOptions = new()
+  {
+    {"false", "OFF"},
+    {"true", "ON"}
+  };
+}

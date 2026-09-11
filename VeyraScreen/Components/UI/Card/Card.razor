@@ -1,0 +1,10 @@
+<div @attributes="AdditionalAttributes" class="@Css">
+  @if (Icon is not null)
+  {
+    <div class="mb-3">
+      <Blazicon Svg="@Icon" />
+    </div>
+  }
+
+  @ChildContent
+</div>
