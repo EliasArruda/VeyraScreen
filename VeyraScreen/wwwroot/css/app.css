@@ -811,8 +811,15 @@ button, a, select {
   object-fit: contain;
 }
 .participant-tile:fullscreen .participant-tile-controls {
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.participant-tile:fullscreen:hover .participant-tile-controls, .participant-tile:fullscreen:focus-within .participant-tile-controls {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 .preview-stage video.preview-hidden {
   visibility: hidden;
