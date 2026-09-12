@@ -1,7 +1,7 @@
 using Blazicons;
 using Microsoft.AspNetCore.Components;
 
-namespace VeyraScreen.Components.UI.Button;
+namespace VeyraScreen.Shared.Components.UI.Button;
 
 public partial class Button
 {

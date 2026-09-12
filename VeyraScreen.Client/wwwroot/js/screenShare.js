@@ -17,6 +17,11 @@ window.startScreenShare = async (videoElement, width, height, fps, audio) => {
         audio: audio,
         systemAudio: "include",
     });
+};
+
+window.attachScreenShare = async (videoElement) => {
+    if (!screenStream) return;
+
     videoElement.srcObject = screenStream;
     await videoElement.play();
 };

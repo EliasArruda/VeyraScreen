@@ -1,0 +1,26 @@
+@page "/room/{RoomId}"
+
+@inject RoomManager RoomManager
+@inject NavigationManager Navigation
+
+@code {
+  [Parameter]
+  public string RoomId { get; set; } = string.Empty;
+
+  private RoomModel? _room;
+
+  protected override void OnParametersSet()
+  {
+    _room = RoomManager.GetRoom(RoomId);
+
+    if (_room is null)
+    {
+      Navigation.NavigateTo("/");
+      return;
+    }
+
+    Console.WriteLine(_room.Resolution);
+    Console.WriteLine(_room.FrameRate);
+    Console.WriteLine(_room.Audio);
+  }
+}

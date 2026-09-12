@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Blazicons.Lucide" Version="3.0.8" />
     <ProjectReference Include="..\VeyraScreen.Client\VeyraScreen.Client.csproj" />
+    <ProjectReference Include="..\VeyraScreen.Shared\VeyraScreen.Shared.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
   </ItemGroup>
 

@@ -1,7 +1,7 @@
 using Blazicons;
 using Microsoft.AspNetCore.Components;
 
-namespace VeyraScreen.Components.UI.Card;
+namespace VeyraScreen.Shared.Components.UI.Card;
 
 public partial class Card
 {

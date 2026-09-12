@@ -6,7 +6,8 @@
     <Blazicon Svg="@Icon" class="" />
   </article>
 
-  <select class="border border-border w-full p-2.5 rounded-md font-bold font-mono">
+  <select @bind="Value" @bind:after="OnValueChanged"
+          class="border border-border w-full p-2.5 rounded-md font-bold font-mono">
     @foreach (var option in Options)
     {
       <option value="@option.Key">@option.Value</option>
@@ -23,5 +24,16 @@
 
   [Parameter]
   public Dictionary<string, string> Options { get; set; } = new();
+
+  [Parameter]
+  public string? Value { get; set; } = default;
+
+  [Parameter]
+  public EventCallback<string> ValueChanged { get; set; }
+
+  private async Task OnValueChanged()
+  {
+    await ValueChanged.InvokeAsync(Value);
+  }
 
 }

@@ -1,8 +1,9 @@
 @page "/Broadcast"
-@using VeyraScreen.Client.Features.Broadcast.Components
-@inject IJSRuntime JS
 @rendermode InteractiveAuto
-
+@using VeyraScreen.Shared.Components.UI.Button
+@using VeyraScreen.Client.Features.Broadcast.Components
+@inject RoomManager RoomManager
+@inject NavigationManager Navigation
 <div class="w-full h-full flex items-center justify-center flex-col">
   <div class="flex flex-col size-1/2 p-6 border border-border gap-4">
     <article class="flex flex-row items-center justify-between">
@@ -17,19 +18,41 @@
             <span class="font-medium font-mono text-primary text-sm">DEVICE_READY</span>
           </div>
         </div>
-
       </article>
 
       <section class="w-full h-full flex flex-row gap-4">
-        <CardBroadcast Label="Quality" Icon="Lucide.MonitorPlay" Options="ResolutionOptions" />
-        <CardBroadcast Label="FrameRate" Icon="Lucide.Gauge" Options="FrameRateOptions" />
-        <CardBroadcast Label="Audio" Icon="Lucide.Mic" Options="AudioOptions" />
+        <CardBroadcast @bind-Value="Resolution" Label="Quality" Icon="Lucide.MonitorPlay" Options="ResolutionOptions" />
+        <CardBroadcast @bind-Value="FrameRate" Label="FrameRate" Icon="Lucide.Gauge" Options="FrameRateOptions" />
+        <CardBroadcast @bind-Value="AudioValue" Label="Audio" Icon="Lucide.Mic" Options="AudioOptions" />
       </section>
+
+      <div class="w-full flex flex-row justify-between items-center">
+        <Button Variants="ButtonVariant.Outline" Class="px-4 py-2 rounded-md">Cancel</Button>
+        <Button @onclick="CreateRoom" Variants="ButtonVariant.Primary" Icon="Lucide.Cast"
+                IconPosition="ButtonIconPosition.Left" Class="px-4 py-2 rounded-md">Start Sharing</Button>
+      </div>
     </div>
   </div>
 
 
 @code {
+  private string Resolution { get; set; } = "1080";
+  private string FrameRate { get; set; } = "60";
+  private string AudioValue { get; set; } = "true";
+
+  private void CreateRoom()
+  {
+    var audio = bool.Parse(AudioValue);
+
+    var room = RoomManager.CreateRoom(
+        Resolution,
+        int.Parse(FrameRate),
+        audio
+    );
+
+    Navigation.NavigateTo($"/room/{room.Id}");
+  }
+
   private Dictionary<string, string> ResolutionOptions = new()
   {
     {"720", "720p"},
