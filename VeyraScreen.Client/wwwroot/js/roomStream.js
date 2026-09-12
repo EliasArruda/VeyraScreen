@@ -11,7 +11,7 @@
             playing: !s.video.paused && !!s.video.srcObject, live: s.snapshot.live,
             viewers: s.snapshot.viewers, hasAudio: s.isHost ? !!s.local?.getAudioTracks().length : s.snapshot.hasAudio,
             audioMuted: s.isHost ? s.audioMuted : s.snapshot.audioMuted,
-            viewerMuted: s.video.muted, fullscreen: document.fullscreenElement === s.stage,
+            viewerMuted: s.isHost ? true : (s.audioElement?.muted ?? true), fullscreen: document.fullscreenElement === s.stage,
             width: s.settings.width, height: s.settings.height, frameRate: s.settings.frameRate,
             actualWidth: s.isHost ? actual.width ?? 0 : s.video.videoWidth,
             actualHeight: s.isHost ? actual.height ?? 0 : s.video.videoHeight,
@@ -33,7 +33,11 @@
     }
     function closePeers(s) {
         for (const id of [...s.peers.keys()]) closePeer(s, id);
-        if (!s.isHost) { s.video.srcObject = null; s.remoteHost = null; }
+        if (!s.isHost) {
+            s.video.srcObject = null;
+            if (s.audioElement) s.audioElement.srcObject = null;
+            s.remoteHost = null;
+        }
     }
     async function switchSource(s) {
         if (s.closed || !s.isHost || !s.ready || s.ending || s.switching) return;
@@ -121,6 +125,7 @@
                 const remote = event.streams[0] ?? s.video.srcObject ?? new MediaStream();
                 if (!event.streams.length && !remote.getTracks().includes(event.track)) remote.addTrack(event.track);
                 s.video.srcObject = remote;
+                if (s.audioElement) s.audioElement.srcObject = remote;
                 const receiver = pc.getReceivers().find(item => item.track === event.track);
                 if (receiver && "jitterBufferTarget" in receiver) {
                     // A small target absorbs Wi-Fi bursts without making controls feel laggy.
@@ -129,6 +134,7 @@
                 event.track.contentHint = event.track.kind === "audio" ? "music" : "detail";
                 try { await s.video.play(); }
                 catch { s.status = "Press play to watch"; }
+                if (s.audioElement && !s.audioElement.muted) s.audioElement.play().catch(() => {});
                 notify(s);
             };
         }
@@ -268,12 +274,12 @@
         s.cleanup.push(() => target.removeEventListener(name, handler));
     }
     window.veyraRoom = {
-        async connect(video, stage, fullscreen, audio, play, switchButton, id, settings, receiver) {
+        async connect(video, audioElement, stage, fullscreen, audio, play, switchButton, id, settings, receiver) {
             await disconnect();
             const local = window.veyraScreen.localStream(id);
             const token = window.veyraScreen.hostCredential(id);
             const s = {
-                id, local, token, isHost: !!local && !!token, video, stage, receiver,
+                id, local, token, isHost: !!local && !!token, video, audioElement, stage, receiver,
                 settings: { ...settings }, snapshot: { live: false, viewers: 0, hasAudio: false, audioMuted: false },
                 peers: new Map(), cleanup: [], audioMuted: false, ready: false, closed: false,
                 status: "Connecting to room…", error: null, remoteHost: null,
@@ -296,6 +302,10 @@
             const watchdog = setInterval(() => inspectInbound(s), 2000);
             s.cleanup.push(() => clearInterval(watchdog));
             video.muted = true;
+            if (audioElement) {
+                audioElement.muted = true;
+                audioElement.volume = 1;
+            }
             if (switchButton?.addEventListener) bind(s, switchButton, "click", () => switchSource(s));
             bind(s, fullscreen, "click", async () => {
                 try {
@@ -338,11 +348,12 @@
                     try { await publishSettings(s); }
                     catch { fail(s, "Audio changed, but the room status couldn’t be updated. Reconnect to sync it."); }
                 } else {
-                    video.muted = !video.muted;
-                    video.defaultMuted = false;
-                    video.volume = 1;
-                    if (!video.muted) video.removeAttribute("muted");
-                    try { await video.play(); }
+                    const output = s.audioElement ?? video;
+                    output.muted = !output.muted;
+                    output.defaultMuted = false;
+                    output.volume = 1;
+                    if (!output.muted) output.removeAttribute("muted");
+                    try { await output.play(); }
                     catch { fail(s, "Press play to start the video."); }
                 }
                 notify(s);

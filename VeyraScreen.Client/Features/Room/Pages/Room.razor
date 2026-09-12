@@ -32,6 +32,7 @@
                 <div class="preview-toolbar"><span><Blazicon Svg="Lucide.Monitor" /> @(_state.IsHost ? "Your broadcast" : "Live screen")</span><span class="mono-text">@(_quality == 2160 ? "4K" : $"{_quality}p") · @_fps FPS</span></div>
                 <div class="preview-stage">
                     <video @ref="_video" autoplay playsinline aria-label="Live screen video"></video>
+                    <audio @ref="_audioElement" autoplay playsinline aria-hidden="true"></audio>
                     @if (!_state.Playing)
                     {
                         <div class="preview-placeholder">
@@ -109,7 +110,7 @@
 @code {
     [Parameter] public string RoomId { get; set; } = string.Empty;
     private RoomModel? _room;
-    private ElementReference _video, _player, _fullscreenButton, _audioButton, _playButton, _switchButton;
+    private ElementReference _video, _audioElement, _player, _fullscreenButton, _audioButton, _playButton, _switchButton;
     private DotNetObjectReference<Room>? _reference;
     private ClientState _state = new();
     private bool _loading = true, _attachPending, _stopping, _disposed, _changing, _connecting, _reconnecting;
@@ -149,7 +150,7 @@
         _connecting = true;
         _reference ??= DotNetObjectReference.Create(this);
         _attachedRoom = _room.Id;
-        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _room.Id, _room, _reference); }
+        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _audioElement, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _room.Id, _room, _reference); }
         catch (JSException) { _actionError = "The player could not start. Reload this page to try again."; }
         finally { _connecting = false; }
         if (!_disposed) StateHasChanged();
