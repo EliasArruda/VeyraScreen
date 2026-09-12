@@ -20,7 +20,9 @@ public sealed class RoomManager
         public bool AudioMuted { get; set; }
         public bool HasAudio { get; set; }
         public long Revision { get; set; }
-        public RoomSnapshot Snapshot() => new(Room, Host is not null, Viewers.Count, AudioMuted, HasAudio, Host, Revision);
+        public HashSet<string> Sharing { get; } = new();
+        public RoomSnapshot Snapshot(IReadOnlyDictionary<string, string> connections) => new(Room, Host is not null, Viewers.Count, AudioMuted, HasAudio, Host, Revision,
+            connections.Where(pair => pair.Value == Room.Id).Select(pair => pair.Key).ToArray(), Sharing.ToArray());
     }
 
     public CreatedRoom CreateRoom(int width, int height, int framerate, bool audio)
@@ -51,7 +53,7 @@ public sealed class RoomManager
                 var validViewer = !isHost && session.Viewers.Contains(connectionId);
                 if (existingRoom != id || !(validHost || validViewer))
                     throw new InvalidOperationException("Already joined in a different room or role.");
-                return new(session.Snapshot(), session.Host, session.Viewers.ToArray(), null, isHost);
+                return new(session.Snapshot(_connections), session.Host, session.Viewers.ToArray(), null, isHost);
             }
             string? replaced = null;
             if (isHost)
@@ -61,11 +63,12 @@ public sealed class RoomManager
                 replaced = session.Host;
                 if (replaced is not null) _connections.Remove(replaced);
                 session.Host = connectionId;
+                session.Sharing.Add(connectionId);
             }
             else session.Viewers.Add(connectionId);
             _connections.Add(connectionId, id);
             session.Revision++;
-            return new(session.Snapshot(), session.Host, session.Viewers.ToArray(), replaced, isHost);
+            return new(session.Snapshot(_connections), session.Host, session.Viewers.ToArray(), replaced, isHost);
         }
     }
 
@@ -75,12 +78,23 @@ public sealed class RoomManager
         {
             if (!_connections.TryGetValue(sender, out var roomId) || !_connections.TryGetValue(target, out var targetRoom) || roomId != targetRoom)
                 throw new InvalidOperationException("Peer is not in this room.");
-            var room = _rooms[roomId];
-            var hostToViewer = room.Host == sender && room.Viewers.Contains(target);
-            var viewerToHost = room.Host == target && room.Viewers.Contains(sender);
-            if (!(hostToViewer && kind is "offer" or "ice") && !(viewerToHost && kind is "answer" or "ice" or "restart"))
+            if (kind is not ("offer" or "answer" or "ice" or "restart"))
                 throw new InvalidOperationException("Signal is not allowed.");
             return roomId;
+        }
+    }
+
+    public RoomSnapshot SetSharing(string connectionId, bool sharing)
+    {
+        lock (_gate)
+        {
+            if (!_connections.TryGetValue(connectionId, out var id))
+                throw new InvalidOperationException("Join the room first.");
+            var session = _rooms[id];
+            if (sharing) session.Sharing.Add(connectionId);
+            else session.Sharing.Remove(connectionId);
+            session.Revision++;
+            return session.Snapshot(_connections);
         }
     }
 
@@ -106,7 +120,7 @@ public sealed class RoomManager
             session.AudioMuted = muted;
             session.HasAudio = hasAudio;
             session.Revision++;
-            return (id, session.Snapshot());
+            return (id, session.Snapshot(_connections));
         }
     }
 
@@ -120,8 +134,9 @@ public sealed class RoomManager
             var wasHost = session.Host == connectionId;
             if (wasHost) session.Host = null;
             else session.Viewers.Remove(connectionId);
+            session.Sharing.Remove(connectionId);
             session.Revision++;
-            return new(id, session.Snapshot(), session.Host, wasHost);
+            return new(id, session.Snapshot(_connections), session.Host, wasHost);
         }
     }
 

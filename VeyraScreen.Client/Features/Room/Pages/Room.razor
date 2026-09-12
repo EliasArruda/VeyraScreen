@@ -46,6 +46,7 @@
                         </div>
                     }
                 </div>
+                <div @ref="_participantGrid" class="participant-grid" aria-label="Shared screens"></div>
                 <div class="player-controls">
                     <div class="player-buttons">
                         <button @ref="_playButton" class="player-button" disabled="@(!_state.Ready || !_state.Live)" aria-label="@(_state.Playing ? "Pause preview" : "Play video")" title="@(_state.Playing ? "Pause preview" : "Play video")"><Blazicon Svg="@(_state.Playing ? Lucide.Pause : Lucide.Play)" /></button>
@@ -76,6 +77,9 @@
                 }
                 <button @ref="_switchButton" class="action-button secondary-button source-button" hidden="@(!_state.IsHost)" disabled="@(!_state.IsHost || !_state.Ready || !_state.Live)" type="button">
                     <Blazicon Svg="Lucide.ScreenShare" /> Change shared source
+                </button>
+                <button @ref="_shareButton" class="action-button secondary-button source-button" hidden="@(_state.IsHost)" disabled="@(_state.IsHost || !_state.Ready || !_state.Live)" type="button">
+                    <Blazicon Svg="Lucide.ScreenShare" /> @(_state.Sharing ? "Stop sharing" : "Share your screen")
                 </button>
                 @if (_state.IsHost)
                 {
@@ -110,7 +114,7 @@
 @code {
     [Parameter] public string RoomId { get; set; } = string.Empty;
     private RoomModel? _room;
-    private ElementReference _video, _audioElement, _player, _fullscreenButton, _audioButton, _playButton, _switchButton;
+    private ElementReference _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton;
     private DotNetObjectReference<Room>? _reference;
     private ClientState _state = new();
     private bool _loading = true, _attachPending, _stopping, _disposed, _changing, _connecting, _reconnecting;
@@ -150,7 +154,7 @@
         _connecting = true;
         _reference ??= DotNetObjectReference.Create(this);
         _attachedRoom = _room.Id;
-        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _audioElement, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _room.Id, _room, _reference); }
+        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton, _room.Id, _room, _reference); }
         catch (JSException) { _actionError = "The player could not start. Reload this page to try again."; }
         finally { _connecting = false; }
         if (!_disposed) StateHasChanged();
@@ -217,6 +221,7 @@
         public bool AudioMuted { get; set; }
         public bool ViewerMuted { get; set; }
         public bool Fullscreen { get; set; }
+        public bool Sharing { get; set; }
         public int Width { get; set; } = 1920;
         public int Height { get; set; } = 1080;
         public int FrameRate { get; set; } = 30;

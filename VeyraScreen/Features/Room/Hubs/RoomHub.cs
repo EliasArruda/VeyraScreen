@@ -12,6 +12,7 @@ public sealed class RoomHub(RoomManager rooms, IceServerProvider iceServers) : H
         try { joined = rooms.Join(roomId, Context.ConnectionId, hostToken); }
         catch (InvalidOperationException error) { throw new HubException(error.Message); }
         await Groups.AddToGroupAsync(Context.ConnectionId, roomId);
+        await Clients.Group(roomId).SendAsync("ParticipantJoined", Context.ConnectionId);
         if (joined.ReplacedHost is not null)
         {
             await Groups.RemoveFromGroupAsync(joined.ReplacedHost, roomId);
@@ -38,6 +39,16 @@ public sealed class RoomHub(RoomManager rooms, IceServerProvider iceServers) : H
         if (host is not null) await Clients.Client(host).SendAsync("ViewerJoined", Context.ConnectionId);
     }
 
+    public async Task<RoomSnapshot> SetSharing(bool sharing)
+    {
+        RoomSnapshot snapshot;
+        try { snapshot = rooms.SetSharing(Context.ConnectionId, sharing); }
+        catch (InvalidOperationException error) { throw new HubException(error.Message); }
+        await Clients.Group(snapshot.Room.Id).SendAsync("RoomState", snapshot);
+        await Clients.Group(snapshot.Room.Id).SendAsync("ParticipantState", Context.ConnectionId, sharing);
+        return snapshot;
+    }
+
     public async Task Signal(string target, string kind, string payload)
     {
         if (payload.Length > 64_000) throw new HubException("Signal too large.");
@@ -60,6 +71,7 @@ public sealed class RoomHub(RoomManager rooms, IceServerProvider iceServers) : H
         if (left is null) return;
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, left.Id);
         await Clients.Group(left.Id).SendAsync("RoomState", left.Snapshot);
+        await Clients.Group(left.Id).SendAsync("ParticipantLeft", Context.ConnectionId);
         if (!left.WasHost && left.Host is not null)
             await Clients.Client(left.Host).SendAsync("ViewerLeft", Context.ConnectionId);
     }

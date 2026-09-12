@@ -15,7 +15,7 @@
             width: s.settings.width, height: s.settings.height, frameRate: s.settings.frameRate,
             actualWidth: s.isHost ? actual.width ?? 0 : s.video.videoWidth,
             actualHeight: s.isHost ? actual.height ?? 0 : s.video.videoHeight,
-            status: s.status, error: s.error
+            sharing: s.sharing, status: s.status, error: s.error
         };
         s.receiver.invokeMethodAsync("OnClientState", state).catch(() => {});
     }
@@ -30,6 +30,14 @@
         peer.pc.ontrack = null;
         peer.pc.close();
         s.peers.delete(id);
+        const tile = s.tiles?.get(id); tile?.remove(); s.tiles?.delete(id);
+    }
+    function addTile(s, id, stream) {
+        if (!s.grid || s.tiles.has(id)) return;
+        const tile = document.createElement("div"); tile.className = "participant-tile";
+        const video = document.createElement("video"); video.autoplay = true; video.playsInline = true; video.muted = true; video.srcObject = stream;
+        const label = document.createElement("span"); label.textContent = `Participant ${id.slice(0, 6)}`;
+        tile.append(video, label); s.grid.append(tile); s.tiles.set(id, tile); video.play().catch(() => {});
     }
     function closePeers(s) {
         for (const id of [...s.peers.keys()]) closePeer(s, id);
@@ -40,7 +48,7 @@
         }
     }
     async function switchSource(s) {
-        if (s.closed || !s.isHost || !s.ready || s.ending || s.switching) return;
+        if (s.closed || !s.sharing || !s.ready || s.ending || s.switching) return;
         s.switching = true;
         s.status = "Choose a new source…";
         s.error = null;
@@ -68,6 +76,30 @@
             s.switching = false;
             notify(s);
         }
+    }
+    async function startSharing(s) {
+        if (s.closed || s.isHost || s.sharing || !s.ready) return;
+        s.status = "Choose a screen to share…"; s.error = null; notify(s);
+        try {
+            s.local = await window.veyraScreen.startRoomShare(s.id, s.settings);
+            s.sharing = true;
+            await s.hub.invoke("SetSharing", true);
+            for (const [id, peer] of s.peers) {
+                for (const track of s.local.getTracks()) peer.pc.addTrack(track, s.local);
+                await offer(s, id, true);
+            }
+            s.status = "Sharing your screen";
+        } catch (error) { s.error = error?.message ?? "Screen sharing could not start."; }
+        notify(s);
+    }
+    async function stopSharing(s) {
+        if (!s.sharing || s.isHost) return;
+        window.veyraScreen.stopRoomShare(s.id);
+        s.local = null; s.sharing = false;
+        for (const [id, peer] of s.peers) closePeer(s, id);
+        try { await s.hub.invoke("SetSharing", false); } catch { }
+        s.status = "Watching live";
+        notify(s);
     }
     async function signal(s, id, kind, value) {
         if (s.closed || s.hub.state !== "Connected") return;
@@ -118,13 +150,14 @@
             notify(s);
         };
         if (s.isHost) {
-            for (const track of s.local.getTracks()) pc.addTrack(track, s.local);
+            if (s.sharing) for (const track of s.local.getTracks()) pc.addTrack(track, s.local);
         } else {
             pc.ontrack = async event => {
                 if (s.closed || s.peers.get(id) !== peer) return;
                 const remote = event.streams[0] ?? s.video.srcObject ?? new MediaStream();
                 if (!event.streams.length && !remote.getTracks().includes(event.track)) remote.addTrack(event.track);
-                s.video.srcObject = remote;
+                if (!s.video.srcObject || s.video.srcObject === s.local) s.video.srcObject = remote;
+                else addTile(s, id, remote);
                 if (s.audioElement) s.audioElement.srcObject = remote;
                 const receiver = pc.getReceivers().find(item => item.track === event.track);
                 if (receiver && "jitterBufferTarget" in receiver) {
@@ -174,7 +207,7 @@
         } catch { }
     }
     async function offer(s, id, restart = false) {
-        if (s.closed || !s.isHost || !s.local?.getVideoTracks().some(t => t.readyState === "live")) return;
+        if (s.closed || !s.sharing || !s.local?.getVideoTracks().some(t => t.readyState === "live")) return;
         const peer = s.peers.get(id) ?? makePeer(s, id);
         peer.queue = peer.queue.catch(() => {}).then(async () => {
             if (s.closed || peer.pc.signalingState === "closed") return;
@@ -206,7 +239,7 @@
             }
             await peer.pc.setRemoteDescription(value);
             for (const candidate of peer.candidates.splice(0)) await peer.pc.addIceCandidate(candidate);
-            if (kind === "offer" && !s.isHost) {
+            if (kind === "offer") {
                 await peer.pc.setLocalDescription(await peer.pc.createAnswer());
                 await signal(s, id, "answer", peer.pc.localDescription);
                 s.status = "Connecting video…";
@@ -274,12 +307,12 @@
         s.cleanup.push(() => target.removeEventListener(name, handler));
     }
     window.veyraRoom = {
-        async connect(video, audioElement, stage, fullscreen, audio, play, switchButton, id, settings, receiver) {
+        async connect(video, audioElement, grid, stage, fullscreen, audio, play, switchButton, shareButton, id, settings, receiver) {
             await disconnect();
             const local = window.veyraScreen.localStream(id);
             const token = window.veyraScreen.hostCredential(id);
             const s = {
-                id, local, token, isHost: !!local && !!token, video, audioElement, stage, receiver,
+                id, local, token, isHost: !!local && !!token, sharing: !!local, video, audioElement, grid, tiles: new Map(), stage, receiver,
                 settings: { ...settings }, snapshot: { live: false, viewers: 0, hasAudio: false, audioMuted: false },
                 peers: new Map(), cleanup: [], audioMuted: false, ready: false, closed: false,
                 status: "Connecting to room…", error: null, remoteHost: null,
@@ -307,6 +340,7 @@
                 audioElement.volume = 1;
             }
             if (switchButton?.addEventListener) bind(s, switchButton, "click", () => switchSource(s));
+            if (shareButton?.addEventListener) bind(s, shareButton, "click", () => s.sharing ? stopSharing(s) : startSharing(s));
             bind(s, fullscreen, "click", async () => {
                 try {
                     if (document.fullscreenElement) await document.exitFullscreen();
@@ -367,6 +401,13 @@
             for (const event of ["playing", "pause", "resize"]) bind(s, video, event, () => notify(s));
             s.hub.on("RoomState", snapshot => roomState(s, snapshot));
             s.hub.on("ViewerJoined", id => { if (s.isHost) offer(s, id).catch(() => fail(s, "A viewer couldn’t connect. They can retry from their room.")); });
+            s.hub.on("ParticipantJoined", id => { if (id !== s.id && s.sharing) offer(s, id).catch(() => {}); });
+            s.hub.on("ParticipantState", (id, sharing) => {
+                if (id === s.id) return;
+                if (sharing && s.sharing) offer(s, id).catch(() => {});
+                if (!sharing) closePeer(s, id);
+            });
+            s.hub.on("ParticipantLeft", id => closePeer(s, id));
             s.hub.on("ViewerLeft", id => closePeer(s, id));
             s.hub.on("Signal", (id, kind, payload) => receiveSignal(s, id, kind, payload).catch(() => fail(s, "The video connection was interrupted. Reconnect to try again.")));
             s.hub.on("Replaced", () => { window.veyraScreen.stop(s.id); fail(s, "This broadcast was opened in another connection."); });

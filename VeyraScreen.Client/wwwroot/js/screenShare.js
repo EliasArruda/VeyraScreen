@@ -182,6 +182,36 @@
             }).finally(() => { pendingSwitch = null; });
             return pendingSwitch;
         },
+        startRoomShare(id, settings) {
+            if (stream || pendingSwitch) return Promise.reject(new Error("A screen is already being shared."));
+            const current = generation;
+            let selection;
+            try {
+                selection = navigator.mediaDevices.getDisplayMedia({
+                    video: { width: { ideal: Number(settings?.width) || 1920 }, height: { ideal: Number(settings?.height) || 1080 }, frameRate: { ideal: Number(settings?.frameRate) || 30 } },
+                    audio: { suppressLocalAudioPlayback: false }, systemAudio: "include", preferCurrentTab: false,
+                    selfBrowserSurface: "exclude", monitorTypeSurfaces: "include"
+                });
+            } catch (error) { return Promise.reject(new Error(captureError(error))); }
+            pendingSwitch = selection.then(captured => {
+                if (current !== generation) { captured.getTracks().forEach(track => track.stop()); throw new Error("Share selection was canceled."); }
+                const track = captured.getVideoTracks()[0];
+                if (!track) { captured.getTracks().forEach(item => item.stop()); throw new Error("The browser did not provide a video source."); }
+                stream = captured; roomId = id; hostToken = null; watchVideo(track);
+                stream.getAudioTracks().forEach(watchAudio);
+                if (video) { video.srcObject = stream; video.muted = true; video.play().catch(() => {}); }
+                return stream;
+            }).catch(error => { throw new Error(error?.name === "NotAllowedError" || error?.name === "AbortError" ? "Share selection was canceled." : error?.message ?? "Screen sharing failed."); }).finally(() => { pendingSwitch = null; });
+            return pendingSwitch;
+        },
+        stopRoomShare(id) {
+            if (id !== roomId || !stream) return;
+            stream.getTracks().forEach(track => track.stop());
+            stream = null;
+            roomId = null;
+            hostToken = null;
+            if (video) video.srcObject = null;
+        },
         assignRoom(id, token) {
             if (!stream?.getVideoTracks().some(track => track.readyState === "live")) return false;
             roomId = id;
