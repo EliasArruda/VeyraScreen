@@ -1325,6 +1325,16 @@ button, a, select {
 .live-player:fullscreen .player-button:hover:not(:disabled) {
   background: rgb(255 255 255 / .16);
 }
+.live-player:fullscreen .participant-tile-controls {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+}
+.live-player:fullscreen .participant-tile:hover .participant-tile-controls, .live-player:fullscreen .participant-tile:focus-within .participant-tile-controls {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
 @media (max-width: 760px) {
   .room-presence {
     align-items: flex-start;

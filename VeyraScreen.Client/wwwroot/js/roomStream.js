@@ -24,8 +24,8 @@
     const iconPaths = {
         watch: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>',
         sound: '<path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 9.5a4 4 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/>',
-        fullscreen: '<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5"/>',
-        exitFullscreen: '<path d="m9 3-6 6M15 3l6 6M9 21l-6-6M21 15l-6 6"/>'
+        fullscreen: '<path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>',
+        exitFullscreen: '<path d="M9 3v3a2 2 0 0 1-2 2H4"></path><path d="M15 3v3a2 2 0 0 0 2 2h3"></path><path d="M9 21v-3a2 2 0 0 0-2-2H4"></path><path d="M15 21v-3a2 2 0 0 1 2-2h3"></path>'
     };
     function iconButton(name, label, className = "") {
         const button = document.createElement("button");
@@ -71,7 +71,7 @@
         const tileVideo = s.tiles.get(id)?.querySelector("video");
         const tileMute = s.tiles.get(id)?.querySelector(".participant-tile-controls button:nth-child(2)");
         if (tileVideo) tileVideo.muted = true;
-        if (tileMute) tileMute.textContent = "Sound";
+        if (tileMute) setIcon(tileMute, "sound", "Enable participant audio");
         s.video.play().catch(() => {});
         if (s.audioElement && !s.audioElement.muted) s.audioElement.play().catch(() => {});
         notify(s);
@@ -98,10 +98,7 @@
             video.play().catch(() => {});
         });
         const fullscreen = iconButton("fullscreen", `Fullscreen participant ${id.slice(0, 6)}`);
-        fullscreen.addEventListener("click", () => {
-            const request = document.fullscreenElement === tile ? document.exitFullscreen() : tile.requestFullscreen?.();
-            request?.catch(() => {});
-        });
+        fullscreen.addEventListener("click", () => toggleFullscreen(s));
         tile.addEventListener("click", event => {
             if (!event.target.closest("button")) focusStream(s, id, stream);
         });
@@ -112,6 +109,24 @@
             }
         });
         controls.append(focus, mute, fullscreen); tile.append(video, label, controls); s.grid.append(tile); s.tiles.set(id, tile); video.play().catch(() => {});
+    }
+    async function toggleFullscreen(s) {
+        try {
+            if (document.fullscreenElement === s.stage) await document.exitFullscreen();
+            else if (s.stage.requestFullscreen) await s.stage.requestFullscreen();
+            else if (s.video.webkitEnterFullscreen) s.video.webkitEnterFullscreen();
+            else fail(s, "Fullscreen is not supported by this browser.");
+        } catch { fail(s, "Fullscreen could not open. Try again from the player."); }
+    }
+    /*
+     * Keep the same fullscreen target for the main player and every participant
+     * card. The card button is only another entry point to the room player.
+     */
+    function bindTileFullscreen(s) {
+        for (const [tileId, tile] of s.tiles) {
+            const button = tile.querySelector(".participant-tile-controls button:last-child");
+            if (button) setIcon(button, document.fullscreenElement === s.stage ? "exitFullscreen" : "fullscreen", document.fullscreenElement === s.stage ? "Exit fullscreen" : `Fullscreen participant ${tileId.slice(0, 6)}`);
+        }
     }
     function addLocalTile(s) {
         if (s.local && s.grid) addTile(s, `local:${s.id}`, s.local, "Your screen");
@@ -487,20 +502,10 @@
             }
             if (switchButton?.addEventListener) bind(s, switchButton, "click", () => switchSource(s));
             if (shareButton?.addEventListener) bind(s, shareButton, "click", () => s.sharing ? stopSharing(s) : startSharing(s));
-            bind(s, fullscreen, "click", async () => {
-                try {
-                    if (document.fullscreenElement) await document.exitFullscreen();
-                    else if (stage.requestFullscreen) await stage.requestFullscreen();
-                    else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-                    else fail(s, "Fullscreen is not supported by this browser.");
-                } catch { fail(s, "Fullscreen could not open. Try again from the player."); }
-            });
+            bind(s, fullscreen, "click", () => toggleFullscreen(s));
             bind(s, document, "fullscreenchange", () => {
                 stage.classList.remove("controls-visible");
-                for (const [tileId, tile] of s.tiles) {
-                    const button = tile.querySelector(".participant-tile-controls button:last-child");
-                    if (button) setIcon(button, document.fullscreenElement === tile ? "exitFullscreen" : "fullscreen", document.fullscreenElement === tile ? "Exit fullscreen" : `Fullscreen participant ${tileId.slice(0, 6)}`);
-                }
+                bindTileFullscreen(s);
                 notify(s);
             });
             // In fullscreen the controls are hidden by default. Only show them
