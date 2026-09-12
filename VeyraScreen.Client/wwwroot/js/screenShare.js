@@ -63,8 +63,9 @@
                         audio: button.dataset.audio === "true",
                         systemAudio: "include",
                         suppressLocalAudioPlayback: false,
-                        preferCurrentTab: true,
-                        selfBrowserSurface: "include",
+                        preferCurrentTab: false,
+                        selfBrowserSurface: "exclude",
+                        monitorTypeSurfaces: "include",
                         surfaceSwitching: "include"
                     }).then(captured => {
                         if (current !== generation) {
@@ -147,8 +148,9 @@
                     },
                     audio: false,
                     systemAudio: "include",
-                    preferCurrentTab: true,
-                    selfBrowserSurface: "include",
+                    preferCurrentTab: false,
+                    selfBrowserSurface: "exclude",
+                    monitorTypeSurfaces: "include",
                     surfaceSwitching: "include"
                 });
             } catch (error) { return Promise.reject(new Error(captureError(error))); }
