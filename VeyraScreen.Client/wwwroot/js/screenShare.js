@@ -102,12 +102,12 @@
             let selection;
             try {
                 selection = navigator.mediaDevices.getDisplayMedia({
-                    video: { displaySurface: "browser" },
-                    audio: true,
+                    video: true,
+                    audio: { suppressLocalAudioPlayback: false },
                     systemAudio: "include",
-                    suppressLocalAudioPlayback: false,
-                    preferCurrentTab: true,
-                    selfBrowserSurface: "include"
+                    preferCurrentTab: false,
+                    selfBrowserSurface: "exclude",
+                    monitorTypeSurfaces: "include"
                 });
             } catch (error) { return Promise.reject(new Error(captureError(error))); }
             pendingAudio = selection.then(captured => {
@@ -124,6 +124,7 @@
                 captured.getVideoTracks().forEach(track => track.stop());
                 stream.getAudioTracks().forEach(track => { stream.removeTrack(track); track.stop(); });
                 const track = tracks[0];
+                track.enabled = true;
                 tracks.slice(1).forEach(extra => extra.stop());
                 watchAudio(track);
                 stream.addTrack(track);
