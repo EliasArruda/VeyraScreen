@@ -1,7 +1,6 @@
 @page "/Broadcast"
 @rendermode InteractiveAuto
 @implements IAsyncDisposable
-@using VeyraScreen.Shared.Contracts.Room
 @using VeyraScreen.Client.Features.Broadcast.Components
 @inject IRoomService Rooms
 @inject NavigationManager Navigation
@@ -10,46 +9,67 @@
 <PageTitle>Set up your screen · Veyra</PageTitle>
 
 <div class="broadcast-page">
-    <a href="/" class="back-link"><Blazicon Svg="Lucide.ArrowLeft" /> Back to home</a>
+    <a href="/" class="back-link">
+        <Blazicon Svg="Lucide.ArrowLeft" /> Back to home
+    </a>
     <div class="broadcast-layout">
         <section class="broadcast-intro">
             <span class="section-label">Screen studio</span>
             <h1>Your screen.<br /> Ready to share.</h1>
             <p>Set your capture preferences, then choose a tab, window, or entire screen.</p>
-            <div class="intro-note"><Blazicon Svg="Lucide.Monitor" /><span>You choose what’s visible.<br />Stop capturing whenever you like.</span></div>
+            <div class="intro-note">
+                <Blazicon Svg="Lucide.Monitor" /><span>You choose what’s visible.<br />Stop capturing whenever you
+                like.</span>
+            </div>
         </section>
 
         <section class="capture-settings" aria-labelledby="settings-heading" aria-busy="@_busy">
             <header class="settings-heading">
-                <div><h2 id="settings-heading">Capture settings</h2><p>A good picture starts here.</p></div>
+                <div>
+                    <h2 id="settings-heading">Capture settings</h2>
+                    <p>A good picture starts here.</p>
+                </div>
                 <Blazicon Svg="Lucide.SlidersHorizontal" />
             </header>
             <fieldset disabled="@(_busy || !_ready)">
                 <legend class="sr-only">Screen capture preferences</legend>
-                <CardBroadcast @bind-Value="Resolution" Label="Resolution" Description="Higher resolution captures more detail." Icon="Lucide.Monitor" Options="ResolutionOptions" />
-                <CardBroadcast @bind-Value="FrameRate" Label="Frame rate" Description="60 FPS is ideal for smooth motion." Icon="Lucide.Gauge" Options="FrameRateOptions" />
-                <CardBroadcast @bind-Value="AudioValue" Label="System audio" Description="Choose a browser tab and enable Share tab audio in the picker." Icon="Lucide.Volume2" Options="AudioOptions" />
+                <CardBroadcast @bind-Value="Resolution" Label="Resolution"
+                               Description="Higher resolution captures more detail." Icon="Lucide.Monitor"
+                               Options="ResolutionOptions" />
+                <CardBroadcast @bind-Value="FrameRate" Label="Frame rate"
+                               Description="60 FPS is ideal for smooth motion." Icon="Lucide.Gauge" Options="FrameRateOptions" />
+                <CardBroadcast @bind-Value="AudioValue" Label="System audio"
+                               Description="Choose a browser tab and enable Share tab audio in the picker." Icon="Lucide.Volume2"
+                               Options="AudioOptions" />
             </fieldset>
-            <div class="capture-summary"><span>Capture target</span><strong>@(Resolution == "2160" ? "4K" : $"{Resolution}p") <span>·</span> @FrameRate FPS <span>·</span> @(AudioValue == "true" ? "Audio requested" : "No audio")</strong></div>
-            @if (_error is not null)
-            {
-                <p class="feedback feedback-error" role="alert">@_error</p>
-            }
-            @if (_unsupported)
-            {
-                <p class="feedback feedback-error" role="alert">Screen capture needs a supported desktop browser and HTTPS or localhost.</p>
-            }
-            <button @ref="_captureButton" @onclick="CreateRoom" class="action-button primary-button capture-button"
-                    disabled="@(_busy || !_ready || _unsupported)" data-width="@Width" data-height="@Resolution" data-fps="@FrameRate" data-audio="@AudioValue">
-                <Blazicon Svg="Lucide.ScreenShare" />
-                @(_busy ? "Preparing your screen…" : !_ready ? "Getting ready…" : "Choose a screen")
-                @if (!_busy) { <Blazicon Svg="Lucide.ArrowRight" /> }
-            </button>
-            <p class="settings-footnote">Opens your browser’s screen picker. Actual quality depends on your display and browser.</p>
-        </section>
-    </div>
-    <p class="scope-note">Share the room link so others can watch. You can change quality, frame rate, and audio while broadcasting.</p>
-</div>
+            <div class="capture-summary"><span>Capture target</span><strong>@(Resolution == "2160" ? "4K" :
+                                    $"{Resolution}p") <span>·</span> @FrameRate FPS <span>·</span> @(AudioValue == "true" ? "Audio requested" : "No audio")</strong></div>
+                @if (_error is not null)
+                {
+                    <p class="feedback feedback-error" role="alert">@_error</p>
+                }
+                @if (_unsupported)
+                {
+                    <p class="feedback feedback-error" role="alert">Screen capture needs a supported desktop browser and HTTPS
+                        or localhost.</p>
+                    }
+                    <button @ref="_captureButton" @onclick="CreateRoom" class="action-button primary-button capture-button"
+                            disabled="@(_busy || !_ready || _unsupported)" data-width="@Width" data-height="@Resolution"
+                            data-fps="@FrameRate" data-audio="@AudioValue">
+                        <Blazicon Svg="Lucide.ScreenShare" />
+                        @(_busy ? "Preparing your screen…" : !_ready ? "Getting ready…" : "Choose a screen")
+                        @if (!_busy)
+                        {
+                            <Blazicon Svg="Lucide.ArrowRight" />
+                        }
+                    </button>
+                    <p class="settings-footnote">Opens your browser’s screen picker. Actual quality depends on your display and
+                        browser.</p>
+                    </section>
+                </div>
+                <p class="scope-note">Share the room link so others can watch. You can change quality, frame rate, and audio while
+                    broadcasting.</p>
+                </div>
 
 @code {
     private string Resolution { get; set; } = "1080";
@@ -78,7 +98,8 @@
         {
             _error = await JS.InvokeAsync<string?>("veyraScreen.completeCapture");
             if (_error is not null || _disposed) return;
-            var created = await Rooms.CreateRoomAsync(new(Width, int.Parse(Resolution), int.Parse(FrameRate), bool.Parse(AudioValue)));
+            var created = await Rooms.CreateRoomAsync(new(Width, int.Parse(Resolution), int.Parse(FrameRate),
+bool.Parse(AudioValue)));
             if (_disposed) return;
             var room = created.Room;
             if (!await JS.InvokeAsync<bool>("veyraScreen.assignRoom", room.Id, created.HostToken))
@@ -113,6 +134,12 @@
     }
 
     private static readonly Dictionary<string, string> ResolutionOptions = new() { ["720"] = "720p · HD", ["1080"] = "1080p · Full HD", ["1440"] = "1440p · QHD", ["2160"] = "4K · Ultra HD" };
-    private static readonly Dictionary<string, string> FrameRateOptions = new() { ["30"] = "30 FPS", ["60"] = "60 FPS", ["120"] = "120 FPS", ["240"] = "240 FPS" };
+    private static readonly Dictionary<string, string> FrameRateOptions = new()
+    {
+        ["30"] = "30 FPS",
+        ["60"] = "60 FPS",
+        ["120"] = "120 FPS",
+        ["240"] = "240 FPS"
+    };
     private static readonly Dictionary<string, string> AudioOptions = new() { ["false"] = "Off", ["true"] = "On, when supported" };
 }

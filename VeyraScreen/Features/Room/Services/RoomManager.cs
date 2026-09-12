@@ -21,8 +21,8 @@ public sealed class RoomManager
         public bool HasAudio { get; set; }
         public long Revision { get; set; }
         public HashSet<string> Sharing { get; } = new();
-        public RoomSnapshot Snapshot(IReadOnlyDictionary<string, string> connections) => new(Room, Host is not null || Sharing.Count > 0, Viewers.Count, AudioMuted, HasAudio, Host, Revision,
-            connections.Where(pair => pair.Value == Room.Id).Select(pair => pair.Key).ToArray(), Sharing.ToArray());
+        public RoomSnapshot Snapshot(IReadOnlyDictionary<string, string> connections) => new(Room, Host is not null || Sharing.Any(connections.ContainsKey), Viewers.Count, AudioMuted, HasAudio, Host, Revision,
+            connections.Where(pair => pair.Value == Room.Id).Select(pair => pair.Key).ToArray(), Sharing.Where(connections.ContainsKey).ToArray());
     }
 
     public CreatedRoom CreateRoom(int width, int height, int framerate, bool audio)
@@ -61,7 +61,11 @@ public sealed class RoomManager
                 if (token!.Length > 128 || !CryptographicOperations.FixedTimeEquals(session.TokenHash, Hash(token)))
                     throw new InvalidOperationException("Invalid broadcaster credential.");
                 replaced = session.Host;
-                if (replaced is not null) _connections.Remove(replaced);
+                if (replaced is not null)
+                {
+                    _connections.Remove(replaced);
+                    session.Sharing.Remove(replaced);
+                }
                 session.Host = connectionId;
                 session.Sharing.Add(connectionId);
             }
@@ -106,6 +110,22 @@ public sealed class RoomManager
                 throw new InvalidOperationException("Join as a viewer first.");
             return _rooms[id].Host;
         }
+    }
+
+    public string[] SharingFor(string connectionId)
+    {
+        lock (_gate)
+        {
+            if (!_connections.TryGetValue(connectionId, out var id) || !_rooms.TryGetValue(id, out var session))
+                throw new InvalidOperationException("Join the room first.");
+            return session.Sharing.Where(_connections.ContainsKey).ToArray();
+        }
+    }
+
+    public bool IsHost(string connectionId)
+    {
+        lock (_gate)
+            return _connections.TryGetValue(connectionId, out var id) && _rooms.TryGetValue(id, out var session) && session.Host == connectionId;
     }
 
     public (string Id, RoomSnapshot Snapshot) Update(string connectionId, CreateRoomRequest request, bool muted, bool hasAudio)

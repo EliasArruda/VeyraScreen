@@ -31,12 +31,22 @@ public sealed class RoomHub(RoomManager rooms, IceServerProvider iceServers) : H
 
     public object GetIceServers() => iceServers.GetConfiguration();
 
+    public bool IsHost() => rooms.IsHost(Context.ConnectionId);
+
     public async Task RequestStream()
     {
+        string[] sharing;
+        try { sharing = rooms.SharingFor(Context.ConnectionId); }
+        catch (InvalidOperationException error) { throw new HubException(error.Message); }
+        foreach (var publisher in sharing)
+            await Clients.Client(publisher).SendAsync("ParticipantJoined", Context.ConnectionId);
         string? host;
         try { host = rooms.HostForViewer(Context.ConnectionId); }
         catch (InvalidOperationException error) { throw new HubException(error.Message); }
-        if (host is not null) await Clients.Client(host).SendAsync("ViewerJoined", Context.ConnectionId);
+        if (host is not null)
+            await Clients.Client(host).SendAsync("ViewerJoined", Context.ConnectionId);
+        foreach (var publisher in sharing)
+            await Clients.Caller.SendAsync("ParticipantState", publisher, true);
     }
 
     public async Task<RoomSnapshot> SetSharing(bool sharing)

@@ -7,7 +7,7 @@
 
 <PageTitle>Live screen room · Veyra</PageTitle>
 
-<div class="room-page">
+<div class="room-page meeting-room">
     <a href="/Broadcast" class="back-link"><Blazicon Svg="Lucide.ArrowLeft" /> Capture settings</a>
     @if (_loading)
     {
@@ -23,13 +23,14 @@
     }
     else
     {
-        <header class="room-heading">
-            <div><span class="section-label">Screen studio</span><h1>@(_state.IsHost ? "You’re on screen" : "Watch together")</h1><p>@(_state.IsHost ? "Share your link. Keep control of the picture." : "A live view of the broadcaster’s screen.")</p></div>
-            <div class="room-presence"><span class="status-badge @(_state.Live && _state.Ready ? "is-live" : "")"><span></span>@_state.Status</span><span class="viewer-count"><Blazicon Svg="Lucide.Users" /> @_state.Viewers @(_state.Viewers == 1 ? "viewer" : "viewers") in room</span></div>
+        <header class="room-heading meeting-topbar">
+            <a href="/" class="meeting-brand" aria-label="Back to Veyra home"><span class="brand-mark"></span><span>veyra</span></a>
+            <div class="meeting-title"><span class="section-label">Live room</span><h1>@(_state.IsHost ? "You’re presenting" : "Watch together")</h1></div>
+            <div class="room-presence"><span class="status-badge @(_state.Live && _state.Ready ? "is-live" : "")"><span></span>@_state.Status</span><span class="viewer-count"><Blazicon Svg="Lucide.Users" /> @_state.Viewers @(_state.Viewers == 1 ? "viewer" : "viewers")</span></div>
         </header>
-        <div class="room-layout">
+        <div class="room-layout meeting-layout">
             <section @ref="_player" class="preview-panel live-player" aria-label="Screen stream">
-                <div class="preview-toolbar"><span><Blazicon Svg="Lucide.Monitor" /> @(_state.IsHost ? "Your broadcast" : "Live screen")</span><span class="mono-text">@(_quality == 2160 ? "4K" : $"{_quality}p") · @_fps FPS</span></div>
+                <div class="preview-toolbar meeting-toolbar"><span><span class="live-dot"></span><Blazicon Svg="Lucide.Monitor" /> @(_state.IsHost ? "Your broadcast" : "Live screen")</span><span class="mono-text">@(_quality == 2160 ? "4K" : $"{_quality}p") · @_fps FPS</span></div>
                 <div class="preview-stage">
                     <video @ref="_video" autoplay playsinline aria-label="Live screen video"></video>
                     <audio @ref="_audioElement" autoplay playsinline aria-hidden="true"></audio>
@@ -46,7 +47,8 @@
                         </div>
                     }
                 </div>
-                <div @ref="_participantGrid" class="participant-grid" aria-label="Shared screens"></div>
+                <div class="participant-list-heading"><span>Available screens</span><small>Choose a card to watch it in the main player</small></div>
+                <div @ref="_participantGrid" class="participant-grid" aria-label="Available shared screens"></div>
                 <div class="player-controls">
                     <div class="player-buttons">
                         <button @ref="_playButton" class="player-button" disabled="@(!_state.Ready || !_state.Live)" aria-label="@(_state.Playing ? "Pause preview" : "Play video")" title="@(_state.Playing ? "Pause preview" : "Play video")"><Blazicon Svg="@(_state.Playing ? Lucide.Pause : Lucide.Play)" /></button>

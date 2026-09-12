@@ -31,13 +31,75 @@
         peer.pc.close();
         s.peers.delete(id);
         const tile = s.tiles?.get(id); tile?.remove(); s.tiles?.delete(id);
+        if (s.focusedId === id) {
+            s.focusedId = null;
+            if (!s.sharing && s.remoteHost && s.peers.has(s.remoteHost)) {
+                const fallback = s.peers.get(s.remoteHost).remoteStream;
+                if (fallback) { s.video.srcObject = fallback; if (s.audioElement) s.audioElement.srcObject = fallback; }
+            }
+        }
     }
-    function addTile(s, id, stream) {
-        if (!s.grid || s.tiles.has(id)) return;
-        const tile = document.createElement("div"); tile.className = "participant-tile";
+    function focusStream(s, id, stream) {
+        s.focusedId = id;
+        s.video.srcObject = stream;
+        if (s.audioElement) s.audioElement.srcObject = stream;
+        for (const [tileId, tile] of s.tiles) {
+            tile.classList.toggle("is-selected", tileId === id);
+            const watch = tile.querySelector(".participant-watch");
+            if (watch) watch.textContent = tileId === id ? "Watching" : "Watch";
+        }
+        const tileVideo = s.tiles.get(id)?.querySelector("video");
+        const tileMute = s.tiles.get(id)?.querySelector(".participant-tile-controls button:nth-child(2)");
+        if (tileVideo) tileVideo.muted = true;
+        if (tileMute) tileMute.textContent = "Sound";
+        s.video.play().catch(() => {});
+        if (s.audioElement && !s.audioElement.muted) s.audioElement.play().catch(() => {});
+        notify(s);
+    }
+    function addTile(s, id, stream, title = `Participant ${id.slice(0, 6)}`) {
+        if (!s.grid) return;
+        if (s.tiles.has(id)) {
+            const existing = s.tiles.get(id).querySelector("video");
+            if (existing && existing.srcObject !== stream) existing.srcObject = stream;
+            return;
+        }
+        const tile = document.createElement("div"); tile.className = "participant-tile"; tile.dataset.participant = id; tile.tabIndex = 0; tile.setAttribute("role", "button"); tile.setAttribute("aria-label", `Watch participant ${id.slice(0, 6)}`);
         const video = document.createElement("video"); video.autoplay = true; video.playsInline = true; video.muted = true; video.srcObject = stream;
-        const label = document.createElement("span"); label.textContent = `Participant ${id.slice(0, 6)}`;
-        tile.append(video, label); s.grid.append(tile); s.tiles.set(id, tile); video.play().catch(() => {});
+        const label = document.createElement("span"); label.textContent = title;
+        const controls = document.createElement("div"); controls.className = "participant-tile-controls";
+        const focus = document.createElement("button"); focus.type = "button"; focus.className = "participant-watch"; focus.textContent = "Watch"; focus.title = "Show this stream in the main player"; focus.setAttribute("aria-label", `Watch participant ${id.slice(0, 6)}`);
+        focus.addEventListener("click", () => focusStream(s, id, stream));
+        const mute = document.createElement("button"); mute.type = "button"; mute.textContent = "Sound"; mute.title = "Toggle this participant's audio"; mute.setAttribute("aria-label", `Toggle audio for participant ${id.slice(0, 6)}`);
+        mute.addEventListener("click", () => {
+            video.muted = !video.muted;
+            if (s.audioElement?.srcObject === stream) s.audioElement.muted = video.muted;
+            mute.textContent = video.muted ? "Sound" : "Mute";
+            video.play().catch(() => {});
+        });
+        const fullscreen = document.createElement("button"); fullscreen.type = "button"; fullscreen.textContent = "Fullscreen"; fullscreen.title = "Open this stream fullscreen"; fullscreen.setAttribute("aria-label", `Fullscreen participant ${id.slice(0, 6)}`);
+        fullscreen.addEventListener("click", () => {
+            const request = tile.requestFullscreen?.();
+            request?.catch(() => {});
+        });
+        tile.addEventListener("click", event => {
+            if (!event.target.closest("button")) focusStream(s, id, stream);
+        });
+        tile.addEventListener("keydown", event => {
+            if ((event.key === "Enter" || event.key === " ") && !event.target.closest("button")) {
+                event.preventDefault();
+                focusStream(s, id, stream);
+            }
+        });
+        controls.append(focus, mute, fullscreen); tile.append(video, label, controls); s.grid.append(tile); s.tiles.set(id, tile); video.play().catch(() => {});
+    }
+    function addLocalTile(s) {
+        if (s.local && s.grid) addTile(s, `local:${s.id}`, s.local, "Your screen");
+    }
+    function removeLocalTile(s) {
+        const tile = s.tiles.get(`local:${s.id}`);
+        tile?.remove();
+        s.tiles.delete(`local:${s.id}`);
+        if (s.focusedId === `local:${s.id}`) s.focusedId = null;
     }
     function closePeers(s) {
         for (const id of [...s.peers.keys()]) closePeer(s, id);
@@ -83,6 +145,7 @@
         try {
             s.local = await window.veyraScreen.startRoomShare(s.id, s.settings);
             s.sharing = true;
+            addLocalTile(s);
             await s.hub.invoke("SetSharing", true);
             const participants = s.participants ?? [];
             for (const id of participants) {
@@ -94,15 +157,43 @@
                 await offer(s, id, true);
             }
             s.status = "Sharing your screen";
-        } catch (error) { s.error = error?.message ?? "Screen sharing could not start."; }
+        } catch (error) {
+            if (s.sharing) {
+                window.veyraScreen.stopRoomShare(s.id);
+                s.local = null;
+                s.sharing = false;
+                removeLocalTile(s);
+                for (const peerId of [...s.peers.keys()]) closePeer(s, peerId);
+                try { await s.hub.invoke("SetSharing", false); } catch { }
+            }
+            s.error = error?.message ?? "Screen sharing could not start.";
+        }
         notify(s);
     }
     async function stopSharing(s) {
         if (!s.sharing || s.isHost) return;
         window.veyraScreen.stopRoomShare(s.id);
         s.local = null; s.sharing = false;
+        removeLocalTile(s);
         for (const [id, peer] of s.peers) closePeer(s, id);
-        try { await s.hub.invoke("SetSharing", false); } catch { }
+        try {
+            await s.hub.invoke("SetSharing", false);
+            // Reconnect to every publisher that is still live (usually the host).
+            await s.hub.invoke("RequestStream");
+        } catch { }
+        s.status = "Watching live";
+        notify(s);
+    }
+    async function sharingEnded(s, id) {
+        if (s.closed || s.id !== id || s.isHost || !s.sharing) return;
+        s.local = null;
+        s.sharing = false;
+        removeLocalTile(s);
+        for (const peerId of [...s.peers.keys()]) closePeer(s, peerId);
+        try {
+            await s.hub.invoke("SetSharing", false);
+            await s.hub.invoke("RequestStream");
+        } catch { }
         s.status = "Watching live";
         notify(s);
     }
@@ -154,16 +245,22 @@
             }
             notify(s);
         };
-        if (s.isHost) {
-            if (s.sharing) for (const track of s.local.getTracks()) pc.addTrack(track, s.local);
-        } else {
-            pc.ontrack = async event => {
+        // Every participant that is publishing must send its local tracks on
+        // every peer, including the host's peer connection. This keeps the
+        // host's participant rail live when a colleague starts sharing first.
+        if (s.sharing && s.local)
+            for (const track of s.local.getTracks()) pc.addTrack(track, s.local);
+        pc.ontrack = async event => {
                 if (s.closed || s.peers.get(id) !== peer) return;
-                const remote = event.streams[0] ?? s.video.srcObject ?? new MediaStream();
+                const remote = peer.remoteStream ?? event.streams[0] ?? new MediaStream();
+                peer.remoteStream = remote;
                 if (!event.streams.length && !remote.getTracks().includes(event.track)) remote.addTrack(event.track);
-                if (!s.video.srcObject || s.video.srcObject === s.local) s.video.srcObject = remote;
-                else addTile(s, id, remote);
-                if (s.audioElement) s.audioElement.srcObject = remote;
+                addTile(s, id, remote);
+                if (!s.isHost && !s.sharing && !s.remoteHost && !s.focusedId) {
+                    s.remoteHost = id;
+                    focusStream(s, id, remote);
+                }
+                if (s.audioElement && (!s.audioElement.srcObject || s.audioElement.srcObject === remote || s.remoteHost === id)) s.audioElement.srcObject = remote;
                 const receiver = pc.getReceivers().find(item => item.track === event.track);
                 if (receiver && "jitterBufferTarget" in receiver) {
                     // A small target absorbs Wi-Fi bursts without making controls feel laggy.
@@ -175,7 +272,6 @@
                 if (s.audioElement && !s.audioElement.muted) s.audioElement.play().catch(() => {});
                 notify(s);
             };
-        }
         return peer;
     }
     async function recoverStalledPeer(s, id, peer) {
@@ -224,12 +320,9 @@
     async function receiveSignal(s, id, kind, payload) {
         if (s.closed) return;
         const value = JSON.parse(payload);
-        if (kind === "restart") { if (s.isHost) await offer(s, id, true); return; }
+        if (kind === "restart") { if (s.sharing) await offer(s, id, true); return; }
         let peer = s.peers.get(id);
-        if (!s.isHost) {
-            if (s.remoteHost && s.remoteHost !== id) closePeers(s);
-            s.remoteHost = id;
-        }
+        if (!s.isHost && !s.sharing && !s.remoteHost) s.remoteHost = id;
         if (!peer) {
             if (s.isHost) return;
             peer = makePeer(s, id);
@@ -242,13 +335,18 @@
                 else peer.candidates.push(value);
                 return;
             }
+            if (kind === "offer" && peer.pc.signalingState !== "stable") {
+                // Deterministically let one side win when two sharers start at once.
+                if (s.id < id) await peer.pc.setLocalDescription({ type: "rollback" });
+                else return;
+            }
             await peer.pc.setRemoteDescription(value);
             for (const candidate of peer.candidates.splice(0)) await peer.pc.addIceCandidate(candidate);
             if (kind === "offer") {
                 await peer.pc.setLocalDescription(await peer.pc.createAnswer());
                 await signal(s, id, "answer", peer.pc.localDescription);
                 s.status = "Connecting video…";
-            } else if (kind === "answer" && s.isHost) {
+            } else if (kind === "answer") {
                 await Promise.all(peer.pc.getSenders().map(sender => limitSender(sender, s.settings).catch(() => {})));
             }
             notify(s);
@@ -264,6 +362,7 @@
             if (!snapshot.live) { closePeers(s); s.status = "Waiting for the broadcaster"; }
         }
         s.participants = snapshot.participants ?? [];
+        if (s.sharing) addLocalTile(s);
         notify(s);
     }
     async function publishSettings(s) {
@@ -273,9 +372,15 @@
     async function join(s) {
         s.ice = await s.hub.invoke("GetIceServers");
         if (s.closed) return;
-        roomState(s, await s.hub.invoke("JoinRoom", s.id, s.isHost ? s.token : null));
+        const snapshot = await s.hub.invoke("JoinRoom", s.id, s.isHost ? s.token : null);
+        // The server is authoritative. A stale browser token must never make a
+        // viewer call broadcaster-only methods such as UpdateSettings.
+        s.isHost = await s.hub.invoke("IsHost");
+        s.sharing = s.isHost || s.sharing;
+        roomState(s, snapshot);
         if (s.closed) return;
         s.ready = true;
+        addLocalTile(s);
         s.status = s.isHost ? "Broadcasting live" : s.snapshot.live ? "Connecting video…" : "Waiting for the broadcaster";
         await publishSettings(s);
         notify(s);
@@ -285,6 +390,7 @@
         s.ending = true;
         closePeers(s);
         s.video.srcObject = null;
+        removeLocalTile(s);
         try { if (s.hub.state === "Connected") await s.hub.invoke("LeaveRoom"); }
         finally {
             await s.hub.stop();
@@ -302,7 +408,7 @@
         closePeers(s);
         for (const cleanup of s.cleanup) cleanup();
         s.video.srcObject = null;
-        if (s.isHost) window.veyraScreen.stop(s.id);
+        if (s.sharing) window.veyraScreen.stop(s.id);
         try {
             if (s.hub.state === "Connected") await s.hub.invoke("LeaveRoom");
         } catch { /* Disconnection is also handled by the server. */ }
@@ -407,7 +513,7 @@
             for (const event of ["playing", "pause", "resize"]) bind(s, video, event, () => notify(s));
             s.hub.on("RoomState", snapshot => roomState(s, snapshot));
             s.hub.on("ViewerJoined", id => { if (s.isHost) offer(s, id).catch(() => fail(s, "A viewer couldn’t connect. They can retry from their room.")); });
-            s.hub.on("ParticipantJoined", id => { if (id !== s.id && s.sharing) offer(s, id).catch(() => {}); });
+            s.hub.on("ParticipantJoined", id => { if (id !== s.id && !s.isHost && s.sharing) offer(s, id).catch(() => {}); });
             s.hub.on("ParticipantState", (id, sharing) => {
                 if (id === s.id) return;
                 if (sharing && s.sharing) offer(s, id).catch(() => {});
@@ -416,7 +522,13 @@
             s.hub.on("ParticipantLeft", id => closePeer(s, id));
             s.hub.on("ViewerLeft", id => closePeer(s, id));
             s.hub.on("Signal", (id, kind, payload) => receiveSignal(s, id, kind, payload).catch(() => fail(s, "The video connection was interrupted. Reconnect to try again.")));
-            s.hub.on("Replaced", () => { window.veyraScreen.stop(s.id); fail(s, "This broadcast was opened in another connection."); });
+            s.hub.on("Replaced", () => {
+                window.veyraScreen.stop(s.id);
+                s.local = null; s.sharing = false;
+                removeLocalTile(s);
+                closePeers(s);
+                fail(s, "This broadcast was opened in another connection.");
+            });
             s.hub.onreconnecting(() => {
                 // Keep a healthy WebRTC path alive while only the signaling socket reconnects.
                 // Closing peers here caused a visible freeze and forced a full renegotiation.
@@ -437,7 +549,10 @@
                 if (!s.closed && !s.ending) { s.ready = false; s.status = "Disconnected"; fail(s, "The room connection closed. Reconnect to try again."); }
             });
             try {
-                if (s.isHost) await window.veyraScreen.attach(video, id, null);
+                if (s.isHost) {
+                    await window.veyraScreen.attach(video, id, null);
+                    addLocalTile(s);
+                }
                 await s.hub.start();
                 await join(s);
             } catch {
@@ -476,7 +591,9 @@
             notify(s);
         },
         captureEnded(id) {
-            if (active?.id === id && active.isHost) endBroadcast(active).catch(() => {});
+            if (active?.id !== id) return;
+            if (active.isHost) endBroadcast(active).catch(() => {});
+            else sharingEnded(active, id).catch(() => {});
         },
         async stopBroadcast() {
             const s = active;
