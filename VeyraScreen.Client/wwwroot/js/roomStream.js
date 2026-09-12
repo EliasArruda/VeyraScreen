@@ -339,6 +339,9 @@
                     catch { fail(s, "Audio changed, but the room status couldn’t be updated. Reconnect to sync it."); }
                 } else {
                     video.muted = !video.muted;
+                    video.defaultMuted = false;
+                    video.volume = 1;
+                    if (!video.muted) video.removeAttribute("muted");
                     try { await video.play(); }
                     catch { fail(s, "Press play to start the video."); }
                 }

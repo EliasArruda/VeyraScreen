@@ -31,7 +31,7 @@
             <section @ref="_player" class="preview-panel live-player" aria-label="Screen stream">
                 <div class="preview-toolbar"><span><Blazicon Svg="Lucide.Monitor" /> @(_state.IsHost ? "Your broadcast" : "Live screen")</span><span class="mono-text">@(_quality == 2160 ? "4K" : $"{_quality}p") · @_fps FPS</span></div>
                 <div class="preview-stage">
-                    <video @ref="_video" autoplay muted playsinline aria-label="Live screen video"></video>
+                    <video @ref="_video" autoplay playsinline aria-label="Live screen video"></video>
                     @if (!_state.Playing)
                     {
                         <div class="preview-placeholder">
