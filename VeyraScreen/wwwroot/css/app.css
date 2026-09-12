@@ -1303,6 +1303,9 @@ button, a, select {
 .live-player:fullscreen .preview-toolbar, .live-player:fullscreen .preview-footer {
   display: none;
 }
+.live-player:fullscreen .participant-list-heading, .live-player:fullscreen .participant-grid {
+  display: none;
+}
 .live-player:fullscreen .player-controls {
   position: absolute;
   z-index: 2;

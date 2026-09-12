@@ -197,6 +197,7 @@ button, a, select { touch-action: manipulation; }
 .live-player:fullscreen .preview-stage { flex: 1; min-height: 0; aspect-ratio: auto; }
 .live-player:fullscreen .preview-stage video { position: absolute; inset: 0; width: 100%; height: 100%; }
 .live-player:fullscreen .preview-toolbar, .live-player:fullscreen .preview-footer { display: none; }
+.live-player:fullscreen .participant-list-heading, .live-player:fullscreen .participant-grid { display: none; }
 .live-player:fullscreen .player-controls {
     position: absolute;
     z-index: 2;
