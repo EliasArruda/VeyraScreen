@@ -21,7 +21,7 @@ public sealed class RoomManager
         public bool HasAudio { get; set; }
         public long Revision { get; set; }
         public HashSet<string> Sharing { get; } = new();
-        public RoomSnapshot Snapshot(IReadOnlyDictionary<string, string> connections) => new(Room, Host is not null, Viewers.Count, AudioMuted, HasAudio, Host, Revision,
+        public RoomSnapshot Snapshot(IReadOnlyDictionary<string, string> connections) => new(Room, Host is not null || Sharing.Count > 0, Viewers.Count, AudioMuted, HasAudio, Host, Revision,
             connections.Where(pair => pair.Value == Room.Id).Select(pair => pair.Key).ToArray(), Sharing.ToArray());
     }
 
