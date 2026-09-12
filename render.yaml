@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: veyrascreen
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+      - key: WebRtc__StunUrls__0
+        value: stun:stun.l.google.com:19302
+      - key: WebRtc__TurnUrls__0
+        sync: false
+      - key: WebRtc__TurnUrls__1
+        sync: false
+      - key: WebRtc__TurnUrls__2
+        sync: false
+      - key: WebRtc__TurnSharedSecret
+        sync: false

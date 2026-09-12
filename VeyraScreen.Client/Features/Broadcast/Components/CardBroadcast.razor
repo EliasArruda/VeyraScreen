@@ -1,39 +1,25 @@
 @using Blazicons
 
-<div class="flex flex-col w-1/3 h-1/2  bg-card/70 p-2.5 rounded-md border border-border gap-4">
-  <article class="flex flex-row items-center justify-between gap-1.5 text-muted-foreground font-semibold uppercase">
-    <span class="font-mono">@Label</span>
-    <Blazicon Svg="@Icon" class="" />
-  </article>
-
-  <select @bind="Value" @bind:after="OnValueChanged"
-          class="border border-border w-full p-2.5 rounded-md font-bold font-mono">
-    @foreach (var option in Options)
-    {
-      <option value="@option.Key">@option.Value</option>
-    }
-  </select>
+<div class="setting-row">
+    <div class="setting-description">
+        <Blazicon Svg="@Icon" />
+        <div><label for="@_id">@Label</label><p id="@(_id + "-hint")">@Description</p></div>
+    </div>
+    <select id="@_id" aria-describedby="@(_id + "-hint")" @bind="Value" @bind:after="OnValueChanged">
+        @foreach (var option in Options)
+        {
+            <option value="@option.Key">@option.Value</option>
+        }
+    </select>
 </div>
 
 @code {
-  [Parameter]
-  public string Label { get; set; } = string.Empty;
-
-  [Parameter]
-  public SvgIcon? Icon { get; set; } = default;
-
-  [Parameter]
-  public Dictionary<string, string> Options { get; set; } = new();
-
-  [Parameter]
-  public string? Value { get; set; } = default;
-
-  [Parameter]
-  public EventCallback<string> ValueChanged { get; set; }
-
-  private async Task OnValueChanged()
-  {
-    await ValueChanged.InvokeAsync(Value);
-  }
-
+    private readonly string _id = $"capture-{Guid.NewGuid():N}";
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public SvgIcon? Icon { get; set; }
+    [Parameter] public Dictionary<string, string> Options { get; set; } = new();
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    private Task OnValueChanged() => ValueChanged.InvokeAsync(Value);
 }

@@ -1,6 +1,6 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<main class="flex flex-col font-sans transition-all w-full h-screen">
+<div class="app-shell">
     <TopBar />
-    @Body
-</main>
+    <main id="main-content">@Body</main>
+</div>

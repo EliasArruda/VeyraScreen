@@ -1,18 +1,8 @@
-@using VeyraScreen.Shared.Components.UI.Button
-<nav class="flex flex-row justify-between items-center border-b p-2 pb-1.5">
-
-  <section class="flex flex-row gap-10">
-    <div class="flex justify-center text-center items-center gap-2 font-bold text-xl">
-      <p class="bg-primary size-2 rounded-full animate-pulse duration-150"></p>
-      <span class="font-medium font-mono">VEYRA</span>
+<nav class="site-nav" aria-label="Main navigation">
+    <a href="/" class="brand-link" aria-label="Veyra home"><span class="brand-mark"></span>VEYRA<span class="brand-suffix">/ screen</span></a>
+    <div class="site-nav-links">
+        <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+        <NavLink href="/Broadcast">Broadcast</NavLink>
+        <NavLink href="/Sessions">Open room</NavLink>
     </div>
-
-    <div class="flex flex-row gap-4">
-      <Button Href="/">Home</Button>
-      <Button Href="/Broadcast">Broadcast</Button>
-      <Button Href="/Sessions">Join Session</Button>
-    </div>
-  </section>
-
-  <div></div>
 </nav>

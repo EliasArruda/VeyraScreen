@@ -1,26 +1,220 @@
 @page "/room/{RoomId}"
-
-@inject RoomManager RoomManager
+@rendermode InteractiveAuto
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IRoomService Rooms
 @inject NavigationManager Navigation
 
-@code {
-  [Parameter]
-  public string RoomId { get; set; } = string.Empty;
+<PageTitle>Live screen room · Veyra</PageTitle>
 
-  private RoomModel? _room;
-
-  protected override void OnParametersSet()
-  {
-    _room = RoomManager.GetRoom(RoomId);
-
-    if (_room is null)
+<div class="room-page">
+    <a href="/Broadcast" class="back-link"><Blazicon Svg="Lucide.ArrowLeft" /> Capture settings</a>
+    @if (_loading)
     {
-      Navigation.NavigateTo("/");
-      return;
+        <div class="room-loading" role="status"><div class="loading-bar"></div><p>Loading your room…</p><div class="loading-preview"></div></div>
+    }
+    else if (_error is not null)
+    {
+        <section class="room-message" role="alert"><Blazicon Svg="Lucide.WifiOff" /><h1>Couldn’t load this room</h1><p>@_error</p><button class="action-button primary-button" @onclick="LoadRoom">Try again</button></section>
+    }
+    else if (_room is null)
+    {
+        <section class="room-message"><Blazicon Svg="Lucide.Monitor" /><h1>Room not found</h1><p>This link may be incorrect, or the room is no longer available.</p><a class="action-button primary-button" href="/Broadcast">Create a room <Blazicon Svg="Lucide.ArrowRight" /></a></section>
+    }
+    else
+    {
+        <header class="room-heading">
+            <div><span class="section-label">Screen studio</span><h1>@(_state.IsHost ? "You’re on screen" : "Watch together")</h1><p>@(_state.IsHost ? "Share your link. Keep control of the picture." : "A live view of the broadcaster’s screen.")</p></div>
+            <div class="room-presence"><span class="status-badge @(_state.Live && _state.Ready ? "is-live" : "")"><span></span>@_state.Status</span><span class="viewer-count"><Blazicon Svg="Lucide.Users" /> @_state.Viewers @(_state.Viewers == 1 ? "viewer" : "viewers") in room</span></div>
+        </header>
+        <div class="room-layout">
+            <section @ref="_player" class="preview-panel live-player" aria-label="Screen stream">
+                <div class="preview-toolbar"><span><Blazicon Svg="Lucide.Monitor" /> @(_state.IsHost ? "Your broadcast" : "Live screen")</span><span class="mono-text">@(_quality == 2160 ? "4K" : $"{_quality}p") · @_fps FPS</span></div>
+                <div class="preview-stage">
+                    <video @ref="_video" autoplay muted playsinline aria-label="Live screen video"></video>
+                    @if (!_state.Playing)
+                    {
+                        <div class="preview-placeholder">
+                            <Blazicon Svg="Lucide.ScreenShare" />
+                            <h2>@_state.Status</h2>
+                            <p>@(_state.Live ? "The video will appear here. If playback is paused, press Play below." : "Keep this page open. The screen will appear when the broadcaster connects.")</p>
+                            @if (_state.IsHost && !_state.Live && _state.Status == "Broadcast ended")
+                            {
+                                <a class="action-button secondary-button" href="/Broadcast">Start a new broadcast</a>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="player-controls">
+                    <div class="player-buttons">
+                        <button @ref="_playButton" class="player-button" disabled="@(!_state.Ready || !_state.Live)" aria-label="@(_state.Playing ? "Pause preview" : "Play video")" title="@(_state.Playing ? "Pause preview" : "Play video")"><Blazicon Svg="@(_state.Playing ? Lucide.Pause : Lucide.Play)" /></button>
+                        <button @ref="_audioButton" class="player-button audio-control" disabled="@(!_state.Ready || (!_state.HasAudio && !_state.IsHost))" aria-pressed="@(_state.IsHost ? _state.AudioMuted : _state.ViewerMuted)" title="@AudioLabel"><Blazicon Svg="@((_state.IsHost && !_state.HasAudio) || (_state.IsHost ? _state.AudioMuted : _state.ViewerMuted) ? Lucide.VolumeX : Lucide.Volume2)" /><span>@AudioLabel</span></button>
+                    </div>
+                    <button @ref="_fullscreenButton" class="player-button" disabled="@(!_state.Ready)" aria-label="@(_state.Fullscreen ? "Exit fullscreen" : "Fullscreen")" title="@(_state.Fullscreen ? "Exit fullscreen" : "Fullscreen")"><Blazicon Svg="@(_state.Fullscreen ? Lucide.Minimize : Lucide.Maximize)" /></button>
+                </div>
+                <footer class="preview-footer"><span>@(_state.IsHost ? "Your preview stays silent. Audio controls affect everyone watching." : _state.AudioMuted ? "The broadcaster has muted the stream." : "Enable sound to hear shared audio.")</span><span class="mono-text">@(_state.ActualWidth > 0 ? $"{_state.ActualWidth} × {_state.ActualHeight}" : "Waiting for video")</span></footer>
+            </section>
+            <aside class="room-details" aria-label="Room details">
+                @if (_state.IsHost)
+                {
+                    <h2>Broadcast controls</h2>
+                    <p class="detail-hint">Changes apply live, without ending your stream.</p>
+                    <fieldset class="live-settings" disabled="@(!_state.Ready || !_state.Live || _changing)">
+                        <legend class="sr-only">Live capture preferences</legend>
+                        <label for="live-quality">Quality</label>
+                        <select id="live-quality" @bind="_quality" @bind:after="ApplyQuality"><option value="720">720p · HD</option><option value="1080">1080p · Full HD</option><option value="1440">1440p · QHD</option><option value="2160">4K · Ultra HD</option></select>
+                        <label for="live-fps">Frame rate</label>
+                        <select id="live-fps" @bind="_fps" @bind:after="ApplyQuality"><option value="30">30 FPS</option><option value="60">60 FPS</option><option value="120">120 FPS</option><option value="240">240 FPS</option></select>
+                    </fieldset>
+                    <p class="detail-hint" role="status">@(_changing ? "Applying capture settings…" : "Actual quality depends on your screen, browser, and connection.")</p>
+                }
+                else
+                {
+                    <h2>Stream details</h2>
+                    <dl class="room-specs"><div><dt>Quality target</dt><dd>@(_quality == 2160 ? "4K" : $"{_quality}p")</dd></div><div><dt>Frame rate target</dt><dd>@_fps FPS</dd></div><div><dt>Shared audio</dt><dd>@(!_state.HasAudio ? "Not included" : _state.AudioMuted ? "Muted by host" : "Available")</dd></div></dl>
+                }
+                @if (_state.IsHost && !_state.HasAudio)
+                {
+                    <p class="detail-hint">No audio track came from the browser. For reliable sound, use Chrome or Edge, choose a browser tab, and enable <strong>Share tab audio</strong> in the picker. Window and full-screen audio are unavailable in some browsers and operating systems.</p>
+                }
+                <div class="room-link-field">
+                    <label for="room-link">Invite someone</label><input id="room-link" readonly value="@RoomUrl" />
+                    <button class="action-button secondary-button" @onclick="CopyLink"><Blazicon Svg="Lucide.Copy" /> Copy room link</button><p class="detail-hint" role="status">@_copyMessage</p>
+                </div>
+                <div class="local-note"><Blazicon Svg="Lucide.Info" /><p>Anyone with this link can watch while the broadcast is live.</p></div>
+                @if (_state.IsHost && _state.Live)
+                {
+                    <button class="action-button stop-button" @onclick="StopCapture" disabled="@_stopping"><Blazicon Svg="Lucide.Square" /> @(_stopping ? "Stopping…" : "End broadcast")</button>
+                }
+                @if (!_state.Ready || (!_state.IsHost && !_state.Playing))
+                {
+                    @if (_state.Status != "Broadcast ended")
+                    {
+                        <button class="action-button secondary-button reconnect-button" @onclick="Reconnect" disabled="@(_connecting || _reconnecting)">@(_reconnecting ? "Reconnecting…" : "Reconnect")</button>
+                    }
+                }
+                @if ((_actionError ?? _state.Error) is { } message) { <p class="feedback feedback-error" role="alert">@message</p> }
+            </aside>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string RoomId { get; set; } = string.Empty;
+    private RoomModel? _room;
+    private ElementReference _video, _player, _fullscreenButton, _audioButton, _playButton;
+    private DotNetObjectReference<Room>? _reference;
+    private ClientState _state = new();
+    private bool _loading = true, _attachPending, _stopping, _disposed, _changing, _connecting, _reconnecting;
+    private string? _error, _actionError, _attachedRoom;
+    private string _copyMessage = "Share this link with the people you want to invite.";
+    private int _loadVersion, _quality = 1080, _fps = 30;
+    private string RoomUrl => Navigation.ToAbsoluteUri($"room/{RoomId}").ToString();
+    private string AudioLabel => _state.IsHost && !_state.HasAudio ? "Add broadcast audio" : !_state.HasAudio ? "No shared audio" : _state.IsHost ? (_state.AudioMuted ? "Unmute broadcast" : "Mute broadcast") : (_state.ViewerMuted ? "Enable sound" : "Mute sound");
+
+    protected override Task OnParametersSetAsync() => LoadRoom();
+    private async Task LoadRoom()
+    {
+        var version = ++_loadVersion;
+        _loading = true;
+        _room = null;
+        _error = _actionError = null;
+        _attachPending = false;
+        _state = new();
+        if (_attachedRoom is not null) { await ReleaseRoom(); _attachedRoom = null; }
+        try
+        {
+            var room = await Rooms.GetRoomAsync(RoomId);
+            if (_disposed || version != _loadVersion) return;
+            _room = room;
+            _attachPending = room is not null;
+            if (room is not null) { _quality = room.Height; _fps = room.FrameRate; }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        { if (version == _loadVersion) _error = "Check your connection and try again."; }
+        finally { if (version == _loadVersion) _loading = false; }
     }
 
-    Console.WriteLine(_room.Resolution);
-    Console.WriteLine(_room.FrameRate);
-    Console.WriteLine(_room.Audio);
-  }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_attachPending || _room is null || _disposed) return;
+        _attachPending = false;
+        _connecting = true;
+        _reference ??= DotNetObjectReference.Create(this);
+        _attachedRoom = _room.Id;
+        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _player, _fullscreenButton, _audioButton, _playButton, _room.Id, _room, _reference); }
+        catch (JSException) { _actionError = "The player could not start. Reload this page to try again."; }
+        finally { _connecting = false; }
+        if (!_disposed) StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task OnClientState(ClientState state) => InvokeAsync(() =>
+    {
+        if (_disposed) return;
+        _state = state;
+        if (!_changing) { _quality = state.Height; _fps = state.FrameRate; }
+        StateHasChanged();
+    });
+
+    private async Task ApplyQuality()
+    {
+        _changing = true;
+        _actionError = null;
+        try { await JS.InvokeVoidAsync("veyraRoom.updateQuality", _quality, _fps); }
+        catch (JSException) { _actionError = "These settings couldn’t be applied. Try a lower quality or frame rate."; }
+        finally { _changing = false; _quality = _state.Height; _fps = _state.FrameRate; }
+    }
+    private async Task CopyLink()
+    {
+        try { _copyMessage = await JS.InvokeAsync<bool>("veyraScreen.copyLink", RoomUrl) ? "Room link copied." : "Select the link above and copy it manually."; }
+        catch (JSException) { _copyMessage = "Select the link above and copy it manually."; }
+    }
+    private async Task StopCapture()
+    {
+        _stopping = true;
+        try { await JS.InvokeVoidAsync("veyraRoom.stopBroadcast"); }
+        catch (JSException) { _actionError = "Use your browser’s Stop sharing button to end the capture."; }
+        finally { _stopping = false; }
+    }
+    private async Task Reconnect()
+    {
+        _reconnecting = true;
+        _actionError = null;
+        try { await JS.InvokeVoidAsync("veyraRoom.reconnect"); }
+        catch (JSException) { _actionError = "Couldn’t reconnect. Check your connection and try again."; }
+        finally { _reconnecting = false; }
+    }
+    private async Task ReleaseRoom()
+    {
+        try { await JS.InvokeVoidAsync("veyraRoom.disconnect", _attachedRoom); }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or TaskCanceledException) { }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        if (_attachedRoom is not null) await ReleaseRoom();
+        _reference?.Dispose();
+    }
+
+    public sealed class ClientState
+    {
+        public bool IsHost { get; set; }
+        public bool Ready { get; set; }
+        public bool Connected { get; set; }
+        public bool Playing { get; set; }
+        public bool Live { get; set; }
+        public int Viewers { get; set; }
+        public bool HasAudio { get; set; }
+        public bool AudioMuted { get; set; }
+        public bool ViewerMuted { get; set; }
+        public bool Fullscreen { get; set; }
+        public int Width { get; set; } = 1920;
+        public int Height { get; set; } = 1080;
+        public int FrameRate { get; set; } = 30;
+        public int ActualWidth { get; set; }
+        public int ActualHeight { get; set; }
+        public string Status { get; set; } = "Connecting to room…";
+        public string? Error { get; set; }
+    }
 }

@@ -1,1 +1,46 @@
-@page "/Sessions";
+@page "/Sessions"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Open a room · Veyra</PageTitle>
+<div class="join-page">
+    <a href="/" class="back-link"><Blazicon Svg="Lucide.ArrowLeft" /> Back to home</a>
+    <h1>Open a room</h1>
+    <p>Paste a Veyra room link or its room ID to watch the live screen.</p>
+    <form @onsubmit="OpenRoom" @onsubmit:preventDefault>
+        <label for="join-link">Room link or ID</label>
+        <input id="join-link" @bind="_input" disabled="@(!_ready)" placeholder="Paste your room link" required autocomplete="off" spellcheck="false" aria-describedby="join-hint" />
+        <p id="join-hint" class="detail-hint">You’ll connect automatically when the broadcaster is live.</p>
+        @if (_error is not null) { <p class="feedback feedback-error" role="alert">@_error</p> }
+        <button class="action-button primary-button" type="submit" disabled="@(!_ready)">Open room <Blazicon Svg="Lucide.ArrowRight" /></button>
+    </form>
+</div>
+
+@code {
+    private string _input = string.Empty;
+    private string? _error;
+    private bool _ready;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ready = true;
+        StateHasChanged();
+    }
+
+    private void OpenRoom()
+    {
+        var id = _input.Trim();
+        if (Uri.TryCreate(id, UriKind.Absolute, out var url))
+        {
+            var segments = url.AbsolutePath.Trim('/').Split('/');
+            id = segments.Length == 2 && segments[0].Equals("room", StringComparison.OrdinalIgnoreCase) ? segments[1] : string.Empty;
+        }
+        if (!Guid.TryParseExact(id, "N", out var parsed))
+        {
+            _error = "Enter a complete room link or its 32-character ID.";
+            return;
+        }
+        Navigation.NavigateTo($"/room/{parsed:N}");
+    }
+}

@@ -1,0 +1,11 @@
+.git
+.github
+.agents
+.codex
+node_modules
+**/bin
+**/obj
+tests
+*.user
+*.suo
+README.md

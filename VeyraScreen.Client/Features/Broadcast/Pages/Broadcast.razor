@@ -1,77 +1,118 @@
 @page "/Broadcast"
 @rendermode InteractiveAuto
-@using VeyraScreen.Shared.Components.UI.Button
+@implements IAsyncDisposable
+@using VeyraScreen.Shared.Contracts.Room
 @using VeyraScreen.Client.Features.Broadcast.Components
-@inject RoomManager RoomManager
+@inject IRoomService Rooms
 @inject NavigationManager Navigation
-<div class="w-full h-full flex items-center justify-center flex-col">
-  <div class="flex flex-col size-1/2 p-6 border border-border gap-4">
-    <article class="flex flex-row items-center justify-between">
-      <div class="flex flex-col leading-tight">
-        <span class="font-sans font-bold text-2xl tracking-wider">Ready to share?</span>
-        <span class="text-muted-foreground text-sm leading-relaxed">Configure stream parameters before
-          broadcasting</span>
-        </div>
-        <div>
-          <div class="flex justify-center text-center items-center gap-2 font-bold text-xl">
-            <p class="bg-primary size-2 rounded-full animate-pulse duration-150"></p>
-            <span class="font-medium font-mono text-primary text-sm">DEVICE_READY</span>
-          </div>
-        </div>
-      </article>
+@inject IJSRuntime JS
 
-      <section class="w-full h-full flex flex-row gap-4">
-        <CardBroadcast @bind-Value="Resolution" Label="Quality" Icon="Lucide.MonitorPlay" Options="ResolutionOptions" />
-        <CardBroadcast @bind-Value="FrameRate" Label="FrameRate" Icon="Lucide.Gauge" Options="FrameRateOptions" />
-        <CardBroadcast @bind-Value="AudioValue" Label="Audio" Icon="Lucide.Mic" Options="AudioOptions" />
-      </section>
+<PageTitle>Set up your screen · Veyra</PageTitle>
 
-      <div class="w-full flex flex-row justify-between items-center">
-        <Button Variants="ButtonVariant.Outline" Class="px-4 py-2 rounded-md">Cancel</Button>
-        <Button @onclick="CreateRoom" Variants="ButtonVariant.Primary" Icon="Lucide.Cast"
-                IconPosition="ButtonIconPosition.Left" Class="px-4 py-2 rounded-md">Start Sharing</Button>
-      </div>
+<div class="broadcast-page">
+    <a href="/" class="back-link"><Blazicon Svg="Lucide.ArrowLeft" /> Back to home</a>
+    <div class="broadcast-layout">
+        <section class="broadcast-intro">
+            <span class="section-label">Screen studio</span>
+            <h1>Your screen.<br /> Ready to share.</h1>
+            <p>Set your capture preferences, then choose a tab, window, or entire screen.</p>
+            <div class="intro-note"><Blazicon Svg="Lucide.Monitor" /><span>You choose what’s visible.<br />Stop capturing whenever you like.</span></div>
+        </section>
+
+        <section class="capture-settings" aria-labelledby="settings-heading" aria-busy="@_busy">
+            <header class="settings-heading">
+                <div><h2 id="settings-heading">Capture settings</h2><p>A good picture starts here.</p></div>
+                <Blazicon Svg="Lucide.SlidersHorizontal" />
+            </header>
+            <fieldset disabled="@(_busy || !_ready)">
+                <legend class="sr-only">Screen capture preferences</legend>
+                <CardBroadcast @bind-Value="Resolution" Label="Resolution" Description="Higher resolution captures more detail." Icon="Lucide.Monitor" Options="ResolutionOptions" />
+                <CardBroadcast @bind-Value="FrameRate" Label="Frame rate" Description="60 FPS is ideal for smooth motion." Icon="Lucide.Gauge" Options="FrameRateOptions" />
+                <CardBroadcast @bind-Value="AudioValue" Label="System audio" Description="Choose a browser tab and enable Share tab audio in the picker." Icon="Lucide.Volume2" Options="AudioOptions" />
+            </fieldset>
+            <div class="capture-summary"><span>Capture target</span><strong>@(Resolution == "2160" ? "4K" : $"{Resolution}p") <span>·</span> @FrameRate FPS <span>·</span> @(AudioValue == "true" ? "Audio requested" : "No audio")</strong></div>
+            @if (_error is not null)
+            {
+                <p class="feedback feedback-error" role="alert">@_error</p>
+            }
+            @if (_unsupported)
+            {
+                <p class="feedback feedback-error" role="alert">Screen capture needs a supported desktop browser and HTTPS or localhost.</p>
+            }
+            <button @ref="_captureButton" @onclick="CreateRoom" class="action-button primary-button capture-button"
+                    disabled="@(_busy || !_ready || _unsupported)" data-width="@Width" data-height="@Resolution" data-fps="@FrameRate" data-audio="@AudioValue">
+                <Blazicon Svg="Lucide.ScreenShare" />
+                @(_busy ? "Preparing your screen…" : !_ready ? "Getting ready…" : "Choose a screen")
+                @if (!_busy) { <Blazicon Svg="Lucide.ArrowRight" /> }
+            </button>
+            <p class="settings-footnote">Opens your browser’s screen picker. Actual quality depends on your display and browser.</p>
+        </section>
     </div>
-  </div>
-
+    <p class="scope-note">Share the room link so others can watch. You can change quality, frame rate, and audio while broadcasting.</p>
+</div>
 
 @code {
-  private string Resolution { get; set; } = "1080";
-  private string FrameRate { get; set; } = "60";
-  private string AudioValue { get; set; } = "true";
+    private string Resolution { get; set; } = "1080";
+    private string FrameRate { get; set; } = "30";
+    private string AudioValue { get; set; } = "true";
+    private int Width => Resolution switch { "720" => 1280, "1080" => 1920, "1440" => 2560, "2160" => 3840, _ => 1920 };
+    private ElementReference _captureButton;
+    private bool _ready, _unsupported, _busy, _navigated, _disposed;
+    private string? _error;
 
-  private void CreateRoom()
-  {
-    var audio = bool.Parse(AudioValue);
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _unsupported = !await JS.InvokeAsync<bool>("veyraScreen.bindCapture", _captureButton); }
+        catch (JSException) { _unsupported = true; }
+        _ready = true;
+        StateHasChanged();
+    }
 
-    var room = RoomManager.CreateRoom(
-        Resolution,
-        int.Parse(FrameRate),
-        audio
-    );
+    private async Task CreateRoom()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            _error = await JS.InvokeAsync<string?>("veyraScreen.completeCapture");
+            if (_error is not null || _disposed) return;
+            var created = await Rooms.CreateRoomAsync(new(Width, int.Parse(Resolution), int.Parse(FrameRate), bool.Parse(AudioValue)));
+            if (_disposed) return;
+            var room = created.Room;
+            if (!await JS.InvokeAsync<bool>("veyraScreen.assignRoom", room.Id, created.HostToken))
+            {
+                _error = "Capture ended before the room was ready. Choose your screen again.";
+                return;
+            }
+            _navigated = true;
+            Navigation.NavigateTo($"/room/{room.Id}");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or JSException or TaskCanceledException)
+        {
+            _error = "We couldn’t prepare your room. Check your connection and try again.";
+            await StopCapture();
+        }
+        finally { _busy = false; }
+    }
 
-    Navigation.NavigateTo($"/room/{room.Id}");
-  }
+    private async Task StopCapture()
+    {
+        try { await JS.InvokeVoidAsync("veyraScreen.stop"); }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or TaskCanceledException) { }
+    }
 
-  private Dictionary<string, string> ResolutionOptions = new()
-  {
-    {"720", "720p"},
-    {"1080", "1080p"},
-    {"1440", "1440p"},
-    {"2160", "4K"},
-  };
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        if (!_ready) return;
+        try { await JS.InvokeVoidAsync("veyraScreen.unbindCapture", _captureButton); }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or TaskCanceledException) { }
+        if (!_navigated) await StopCapture();
+    }
 
-  private Dictionary<string, string> FrameRateOptions = new()
-  {
-    {"30", "30 FPS"},
-    {"60", "60 FPS"},
-    {"120", "120 FPS"},
-    {"240", "240 FPS"},
-  };
-
-  private Dictionary<string, string> AudioOptions = new()
-  {
-    {"false", "OFF"},
-    {"true", "ON"}
-  };
+    private static readonly Dictionary<string, string> ResolutionOptions = new() { ["720"] = "720p · HD", ["1080"] = "1080p · Full HD", ["1440"] = "1440p · QHD", ["2160"] = "4K · Ultra HD" };
+    private static readonly Dictionary<string, string> FrameRateOptions = new() { ["30"] = "30 FPS", ["60"] = "60 FPS", ["120"] = "120 FPS", ["240"] = "240 FPS" };
+    private static readonly Dictionary<string, string> AudioOptions = new() { ["false"] = "Off", ["true"] = "On, when supported" };
 }
