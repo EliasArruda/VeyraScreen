@@ -1194,22 +1194,34 @@ button, a, select {
   align-items: center;
   gap: 4px;
 }
+.volume-cluster {
+  display: inline-flex;
+  align-items: center;
+}
+.volume-cluster .audio-control span {
+  display: none;
+}
 .volume-control {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  width: 0;
   min-height: 44px;
-  padding: 0 8px;
+  overflow: hidden;
   color: var(--studio-muted);
+  transition: width 180ms ease;
 }
-.volume-control svg {
-  width: 16px;
-  height: 16px;
+.volume-cluster:hover .volume-control, .volume-cluster:focus-within .volume-control {
+  width: 104px;
 }
 .volume-control input {
   width: 96px;
+  opacity: 0;
   accent-color: var(--primary);
   cursor: pointer;
+  transition: opacity 140ms ease;
+}
+.volume-cluster:hover .volume-control input, .volume-cluster:focus-within .volume-control input {
+  opacity: 1;
 }
 .volume-control input:disabled {
   opacity: .45;
@@ -1445,6 +1457,9 @@ button, a, select {
   }
   .meeting-layout .room-details {
     padding: 16px;
+  }
+  .volume-cluster:hover .volume-control, .volume-cluster:focus-within .volume-control {
+    width: 84px;
   }
   .volume-control input {
     width: 76px;

@@ -178,9 +178,12 @@ button, a, select { touch-action: manipulation; }
 .live-player .preview-stage { aspect-ratio: 16 / 9; }
 .player-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--studio-line); background: var(--studio-surface); }
 .player-buttons { display: flex; align-items: center; gap: 4px; }
-.volume-control { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; color: var(--studio-muted); }
-.volume-control svg { width: 16px; height: 16px; }
-.volume-control input { width: 96px; accent-color: var(--primary); cursor: pointer; }
+.volume-cluster { display: inline-flex; align-items: center; }
+.volume-cluster .audio-control span { display: none; }
+.volume-control { display: inline-flex; align-items: center; width: 0; min-height: 44px; overflow: hidden; color: var(--studio-muted); transition: width 180ms ease; }
+.volume-cluster:hover .volume-control, .volume-cluster:focus-within .volume-control { width: 104px; }
+.volume-control input { width: 96px; opacity: 0; accent-color: var(--primary); cursor: pointer; transition: opacity 140ms ease; }
+.volume-cluster:hover .volume-control input, .volume-cluster:focus-within .volume-control input { opacity: 1; }
 .volume-control input:disabled { opacity: .45; cursor: not-allowed; }
 .player-button { min-width: 44px; min-height: 44px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 6px; background: transparent; color: var(--foreground); cursor: pointer; font: inherit; font-size: 11px; transition: background-color 160ms; }
 .player-button:hover:not(:disabled) { background: var(--muted); }
@@ -252,5 +255,6 @@ button, a, select { touch-action: manipulation; }
     .meeting-topbar .room-presence { gap: 6px; }
     .meeting-layout .preview-stage { min-height: 240px; }
     .meeting-layout .room-details { padding: 16px; }
+    .volume-cluster:hover .volume-control, .volume-cluster:focus-within .volume-control { width: 84px; }
     .volume-control input { width: 76px; }
 }

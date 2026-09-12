@@ -496,7 +496,7 @@
                 } catch { fail(s, "Fullscreen could not open. Try again from the player."); }
             });
             bind(s, document, "fullscreenchange", () => {
-                if (!document.fullscreenElement) stage.classList.remove("controls-visible");
+                stage.classList.remove("controls-visible");
                 for (const [tileId, tile] of s.tiles) {
                     const button = tile.querySelector(".participant-tile-controls button:last-child");
                     if (button) setIcon(button, document.fullscreenElement === tile ? "exitFullscreen" : "fullscreen", document.fullscreenElement === tile ? "Exit fullscreen" : `Fullscreen participant ${tileId.slice(0, 6)}`);
