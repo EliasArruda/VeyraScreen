@@ -73,6 +73,13 @@
                     <h2>Stream details</h2>
                     <dl class="room-specs"><div><dt>Quality target</dt><dd>@(_quality == 2160 ? "4K" : $"{_quality}p")</dd></div><div><dt>Frame rate target</dt><dd>@_fps FPS</dd></div><div><dt>Shared audio</dt><dd>@(!_state.HasAudio ? "Not included" : _state.AudioMuted ? "Muted by host" : "Available")</dd></div></dl>
                 }
+                <button @ref="_switchButton" class="action-button secondary-button source-button" hidden="@(!_state.IsHost)" disabled="@(!_state.IsHost || !_state.Ready || !_state.Live)" type="button">
+                    <Blazicon Svg="Lucide.ScreenShare" /> Change shared source
+                </button>
+                @if (_state.IsHost)
+                {
+                    <p class="detail-hint">Choose another tab, window, or screen without ending this room.</p>
+                }
                 @if (_state.IsHost && !_state.HasAudio)
                 {
                     <p class="detail-hint">No audio track came from the browser. For reliable sound, use Chrome or Edge, choose a browser tab, and enable <strong>Share tab audio</strong> in the picker. Window and full-screen audio are unavailable in some browsers and operating systems.</p>
@@ -102,7 +109,7 @@
 @code {
     [Parameter] public string RoomId { get; set; } = string.Empty;
     private RoomModel? _room;
-    private ElementReference _video, _player, _fullscreenButton, _audioButton, _playButton;
+    private ElementReference _video, _player, _fullscreenButton, _audioButton, _playButton, _switchButton;
     private DotNetObjectReference<Room>? _reference;
     private ClientState _state = new();
     private bool _loading = true, _attachPending, _stopping, _disposed, _changing, _connecting, _reconnecting;
@@ -142,7 +149,7 @@
         _connecting = true;
         _reference ??= DotNetObjectReference.Create(this);
         _attachedRoom = _room.Id;
-        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _player, _fullscreenButton, _audioButton, _playButton, _room.Id, _room, _reference); }
+        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _room.Id, _room, _reference); }
         catch (JSException) { _actionError = "The player could not start. Reload this page to try again."; }
         finally { _connecting = false; }
         if (!_disposed) StateHasChanged();

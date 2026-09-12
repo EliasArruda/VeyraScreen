@@ -6,6 +6,7 @@
     let observer = null;
     let video = null;
     let pendingAudio = null;
+    let pendingSwitch = null;
     const bindings = new WeakMap();
     let generation = 0;
 
@@ -21,6 +22,14 @@
         track.addEventListener("ended", () => {
             stream?.removeTrack(track);
             window.veyraRoom?.audioChanged(roomId);
+        }, { once: true });
+    }
+    function watchVideo(track) {
+        track.contentHint = "motion";
+        track.addEventListener("ended", () => {
+            const receiver = observer;
+            stop();
+            receiver?.invokeMethodAsync("OnCaptureEnded").catch(() => {});
         }, { once: true });
     }
     function stop() {
@@ -64,12 +73,7 @@
                         }
                         stream = captured;
                         const track = stream.getVideoTracks()[0];
-                        track.contentHint = "motion";
-                        track.addEventListener("ended", () => {
-                            const receiver = observer;
-                            stop();
-                            receiver?.invokeMethodAsync("OnCaptureEnded").catch(() => {});
-                        }, { once: true });
+                        watchVideo(track);
                         (stream.getAudioTracks?.() ?? []).forEach(watchAudio);
                         return null;
                     }).catch(captureError);
@@ -128,6 +132,52 @@
                 throw error;
             }).finally(() => { pendingAudio = null; });
             return pendingAudio;
+        },
+        switchVideo(id, settings) {
+            if (pendingSwitch) return pendingSwitch;
+            if (id !== roomId || !stream) return Promise.reject(new Error("No active capture."));
+            const current = generation;
+            let selection;
+            try {
+                selection = navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        width: { ideal: Number(settings?.width) || 1920 },
+                        height: { ideal: Number(settings?.height) || 1080 },
+                        frameRate: { ideal: Number(settings?.frameRate) || 30 }
+                    },
+                    audio: false,
+                    systemAudio: "include",
+                    preferCurrentTab: true,
+                    selfBrowserSurface: "include",
+                    surfaceSwitching: "include"
+                });
+            } catch (error) { return Promise.reject(new Error(captureError(error))); }
+            pendingSwitch = selection.then(captured => {
+                if (current !== generation || id !== roomId) {
+                    captured.getTracks().forEach(track => track.stop());
+                    throw new Error("The broadcast ended before the source could be changed.");
+                }
+                const next = captured.getVideoTracks().find(track => track.readyState === "live");
+                if (!next) {
+                    captured.getTracks().forEach(track => track.stop());
+                    throw new Error("The browser did not provide a video source.");
+                }
+                const previous = stream.getVideoTracks()[0];
+                if (previous) stream.removeTrack(previous);
+                stream.addTrack(next);
+                watchVideo(next);
+                captured.getAudioTracks().forEach(track => track.stop());
+                previous?.stop();
+                if (video) {
+                    video.srcObject = stream;
+                    video.play().catch(() => {});
+                }
+                return next;
+            }).catch(error => {
+                if (error?.name === "NotAllowedError" || error?.name === "AbortError") throw new Error("Source selection was canceled. Your current source is still broadcasting.");
+                throw error;
+            }).finally(() => { pendingSwitch = null; });
+            return pendingSwitch;
         },
         assignRoom(id, token) {
             if (!stream?.getVideoTracks().some(track => track.readyState === "live")) return false;

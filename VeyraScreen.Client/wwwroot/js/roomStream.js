@@ -35,6 +35,36 @@
         for (const id of [...s.peers.keys()]) closePeer(s, id);
         if (!s.isHost) { s.video.srcObject = null; s.remoteHost = null; }
     }
+    async function switchSource(s) {
+        if (s.closed || !s.isHost || !s.ready || s.ending || s.switching) return;
+        s.switching = true;
+        s.status = "Choose a new source…";
+        s.error = null;
+        notify(s);
+        try {
+            const track = await window.veyraScreen.switchVideo(s.id, s.settings);
+            const updates = [];
+            for (const [id, peer] of s.peers) {
+                const sender = peer.pc.getSenders().find(item => item.track?.kind === "video");
+                if (sender) {
+                    updates.push(sender.replaceTrack(track).then(() => limitSender(sender, s.settings)));
+                } else {
+                    peer.pc.addTrack(track, s.local);
+                    updates.push(offer(s, id, true));
+                }
+            }
+            const results = await Promise.allSettled(updates);
+            if (results.some(result => result.status === "rejected"))
+                throw new Error("The new source could not be sent to every viewer.");
+            s.status = "Broadcasting live";
+        } catch (error) {
+            s.status = "Broadcasting live";
+            fail(s, error?.message ?? "The shared source could not be changed.");
+        } finally {
+            s.switching = false;
+            notify(s);
+        }
+    }
     async function signal(s, id, kind, value) {
         if (s.closed || s.hub.state !== "Connected") return;
         await s.hub.invoke("Signal", id, kind, JSON.stringify(value));
@@ -238,7 +268,7 @@
         s.cleanup.push(() => target.removeEventListener(name, handler));
     }
     window.veyraRoom = {
-        async connect(video, stage, fullscreen, audio, play, id, settings, receiver) {
+        async connect(video, stage, fullscreen, audio, play, switchButton, id, settings, receiver) {
             await disconnect();
             const local = window.veyraScreen.localStream(id);
             const token = window.veyraScreen.hostCredential(id);
@@ -266,6 +296,7 @@
             const watchdog = setInterval(() => inspectInbound(s), 2000);
             s.cleanup.push(() => clearInterval(watchdog));
             video.muted = true;
+            if (switchButton?.addEventListener) bind(s, switchButton, "click", () => switchSource(s));
             bind(s, fullscreen, "click", async () => {
                 try {
                     if (document.fullscreenElement) await document.exitFullscreen();
