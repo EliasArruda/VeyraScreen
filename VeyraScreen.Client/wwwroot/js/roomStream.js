@@ -128,15 +128,6 @@
             if (button) setIcon(button, document.fullscreenElement === s.stage ? "exitFullscreen" : "fullscreen", document.fullscreenElement === s.stage ? "Exit fullscreen" : `Fullscreen participant ${tileId.slice(0, 6)}`);
         }
     }
-    function addLocalTile(s) {
-        if (s.local && s.grid) addTile(s, `local:${s.id}`, s.local, "Your screen");
-    }
-    function removeLocalTile(s) {
-        const tile = s.tiles.get(`local:${s.id}`);
-        tile?.remove();
-        s.tiles.delete(`local:${s.id}`);
-        if (s.focusedId === `local:${s.id}`) s.focusedId = null;
-    }
     function closePeers(s) {
         for (const id of [...s.peers.keys()]) closePeer(s, id);
         if (!s.isHost) {
@@ -181,7 +172,6 @@
         try {
             s.local = await window.veyraScreen.startRoomShare(s.id, s.settings);
             s.sharing = true;
-            addLocalTile(s);
             await s.hub.invoke("SetSharing", true);
             const participants = s.participants ?? [];
             for (const id of participants) {
@@ -198,7 +188,6 @@
                 window.veyraScreen.stopRoomShare(s.id);
                 s.local = null;
                 s.sharing = false;
-                removeLocalTile(s);
                 for (const peerId of [...s.peers.keys()]) closePeer(s, peerId);
                 try { await s.hub.invoke("SetSharing", false); } catch { }
             }
@@ -210,7 +199,6 @@
         if (!s.sharing || s.isHost) return;
         window.veyraScreen.stopRoomShare(s.id);
         s.local = null; s.sharing = false;
-        removeLocalTile(s);
         for (const [id, peer] of s.peers) closePeer(s, id);
         try {
             await s.hub.invoke("SetSharing", false);
@@ -224,7 +212,6 @@
         if (s.closed || s.id !== id || s.isHost || !s.sharing) return;
         s.local = null;
         s.sharing = false;
-        removeLocalTile(s);
         for (const peerId of [...s.peers.keys()]) closePeer(s, peerId);
         try {
             await s.hub.invoke("SetSharing", false);
@@ -398,7 +385,6 @@
             if (!snapshot.live) { closePeers(s); s.status = "Waiting for the broadcaster"; }
         }
         s.participants = snapshot.participants ?? [];
-        if (s.sharing) addLocalTile(s);
         notify(s);
     }
     async function publishSettings(s) {
@@ -416,7 +402,6 @@
         roomState(s, snapshot);
         if (s.closed) return;
         s.ready = true;
-        addLocalTile(s);
         s.status = s.isHost ? "Broadcasting live" : s.snapshot.live ? "Connecting video…" : "Waiting for the broadcaster";
         await publishSettings(s);
         notify(s);
@@ -426,7 +411,6 @@
         s.ending = true;
         closePeers(s);
         s.video.srcObject = null;
-        removeLocalTile(s);
         try { if (s.hub.state === "Connected") await s.hub.invoke("LeaveRoom"); }
         finally {
             await s.hub.stop();
@@ -568,7 +552,6 @@
             s.hub.on("Replaced", () => {
                 window.veyraScreen.stop(s.id);
                 s.local = null; s.sharing = false;
-                removeLocalTile(s);
                 closePeers(s);
                 fail(s, "This broadcast was opened in another connection.");
             });
@@ -594,7 +577,6 @@
             try {
                 if (s.isHost) {
                     await window.veyraScreen.attach(video, id, null);
-                    addLocalTile(s);
                 }
                 await s.hub.start();
                 await join(s);

@@ -47,8 +47,8 @@
                         </div>
                     }
                 </div>
-                <div class="participant-list-heading"><span>Available screens</span><small>Choose a card to watch it in the main player</small></div>
-                <div @ref="_participantGrid" class="participant-grid" aria-label="Available shared screens"></div>
+                <div class="participant-list-heading"><span>Screens to watch</span><small>Select a card to show it in the main player</small></div>
+                <div @ref="_participantGrid" class="participant-grid" aria-label="Screens available to watch"></div>
                 <div class="player-controls">
                     <div class="player-buttons">
                         <button @ref="_playButton" class="player-button" disabled="@(!_state.Ready || !_state.Live)" aria-label="@(_state.Playing ? "Pause preview" : "Play video")" title="@(_state.Playing ? "Pause preview" : "Play video")"><Blazicon Svg="@(_state.Playing ? Lucide.Pause : Lucide.Play)" /></button>
