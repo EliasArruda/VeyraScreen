@@ -11,7 +11,7 @@
             playing: !s.video.paused && !!s.video.srcObject, live: s.snapshot.live,
             viewers: s.snapshot.viewers, hasAudio: s.isHost ? !!s.local?.getAudioTracks().length : s.snapshot.hasAudio,
             audioMuted: s.isHost ? s.audioMuted : s.snapshot.audioMuted,
-            viewerMuted: s.isHost ? true : (s.audioElement?.muted ?? true), fullscreen: document.fullscreenElement === s.stage,
+            viewerMuted: s.isHost ? true : (s.audioElement?.muted ?? true), volume: s.volume, fullscreen: document.fullscreenElement === s.stage,
             width: s.settings.width, height: s.settings.height, frameRate: s.settings.frameRate,
             actualWidth: s.isHost ? actual.width ?? 0 : s.video.videoWidth,
             actualHeight: s.isHost ? actual.height ?? 0 : s.video.videoHeight,
@@ -92,6 +92,7 @@
         const mute = iconButton("sound", `Toggle audio for participant ${id.slice(0, 6)}`);
         mute.addEventListener("click", () => {
             video.muted = !video.muted;
+            video.volume = s.volume;
             if (s.audioElement?.srcObject === stream) s.audioElement.muted = video.muted;
             setIcon(mute, "sound", video.muted ? "Enable participant audio" : "Mute participant audio");
             video.play().catch(() => {});
@@ -439,7 +440,7 @@
         s.cleanup.push(() => target.removeEventListener(name, handler));
     }
     window.veyraRoom = {
-        async connect(video, audioElement, grid, stage, fullscreen, audio, play, switchButton, shareButton, id, settings, receiver) {
+        async connect(video, audioElement, grid, stage, fullscreen, audio, play, switchButton, shareButton, volumeControl, id, settings, receiver) {
             await disconnect();
             const local = window.veyraScreen.localStream(id);
             const token = window.veyraScreen.hostCredential(id);
@@ -447,7 +448,7 @@
                 id, local, token, isHost: !!local && !!token, sharing: !!local, video, audioElement, grid, tiles: new Map(), stage, receiver,
                 settings: { ...settings }, snapshot: { live: false, viewers: 0, hasAudio: false, audioMuted: false },
                 peers: new Map(), participants: [], cleanup: [], audioMuted: false, ready: false, closed: false,
-                status: "Connecting to room…", error: null, remoteHost: null,
+                status: "Connecting to room…", error: null, remoteHost: null, volume: 1,
                 hub: new signalR.HubConnectionBuilder().withUrl(new URL("hubs/rooms", document.baseURI).href)
                     .withAutomaticReconnect([0, 2000, 5000, 10000]).configureLogging(signalR.LogLevel.Error).build()
             };
@@ -470,6 +471,19 @@
             if (audioElement) {
                 audioElement.muted = true;
                 audioElement.volume = 1;
+            }
+            if (volumeControl?.addEventListener) {
+                volumeControl.value = "1";
+                bind(s, volumeControl, "input", () => {
+                    s.volume = Math.max(0, Math.min(1, Number(volumeControl.value) || 0));
+                    if (s.audioElement) s.audioElement.volume = s.volume;
+                    if (s.video && !s.video.muted) s.video.volume = s.volume;
+                    for (const tile of s.tiles.values()) {
+                        const tileVideo = tile.querySelector("video");
+                        if (tileVideo && !tileVideo.muted) tileVideo.volume = s.volume;
+                    }
+                    notify(s);
+                });
             }
             if (switchButton?.addEventListener) bind(s, switchButton, "click", () => switchSource(s));
             if (shareButton?.addEventListener) bind(s, shareButton, "click", () => s.sharing ? stopSharing(s) : startSharing(s));

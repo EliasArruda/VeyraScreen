@@ -1194,6 +1194,27 @@ button, a, select {
   align-items: center;
   gap: 4px;
 }
+.volume-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--studio-muted);
+}
+.volume-control svg {
+  width: 16px;
+  height: 16px;
+}
+.volume-control input {
+  width: 96px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.volume-control input:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
 .player-button {
   min-width: 44px;
   min-height: 44px;
@@ -1424,6 +1445,9 @@ button, a, select {
   }
   .meeting-layout .room-details {
     padding: 16px;
+  }
+  .volume-control input {
+    width: 76px;
   }
 }
 :root {

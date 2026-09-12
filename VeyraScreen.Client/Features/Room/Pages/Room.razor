@@ -53,6 +53,7 @@
                     <div class="player-buttons">
                         <button @ref="_playButton" class="player-button" disabled="@(!_state.Ready || !_state.Live)" aria-label="@(_state.Playing ? "Pause preview" : "Play video")" title="@(_state.Playing ? "Pause preview" : "Play video")"><Blazicon Svg="@(_state.Playing ? Lucide.Pause : Lucide.Play)" /></button>
                         <button @ref="_audioButton" class="player-button audio-control" disabled="@(!_state.Ready || (!_state.HasAudio && !_state.IsHost))" aria-pressed="@(_state.IsHost ? _state.AudioMuted : _state.ViewerMuted)" title="@AudioLabel"><Blazicon Svg="@((_state.IsHost && !_state.HasAudio) || (_state.IsHost ? _state.AudioMuted : _state.ViewerMuted) ? Lucide.VolumeX : Lucide.Volume2)" /><span>@AudioLabel</span></button>
+                        <label class="volume-control" title="Transmission volume"><Blazicon Svg="Lucide.Volume2" /><input @ref="_volumeControl" type="range" min="0" max="1" step="0.05" value="1" disabled="@(_state.IsHost || !_state.Ready || !_state.HasAudio)" aria-label="Transmission volume" /></label>
                     </div>
                     <button @ref="_fullscreenButton" class="player-button" disabled="@(!_state.Ready)" aria-label="@(_state.Fullscreen ? "Exit fullscreen" : "Fullscreen")" title="@(_state.Fullscreen ? "Exit fullscreen" : "Fullscreen")"><Blazicon Svg="@(_state.Fullscreen ? Lucide.Minimize : Lucide.Maximize)" /></button>
                 </div>
@@ -116,7 +117,7 @@
 @code {
     [Parameter] public string RoomId { get; set; } = string.Empty;
     private RoomModel? _room;
-    private ElementReference _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton;
+    private ElementReference _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton, _volumeControl;
     private DotNetObjectReference<Room>? _reference;
     private ClientState _state = new();
     private bool _loading = true, _attachPending, _stopping, _disposed, _changing, _connecting, _reconnecting;
@@ -156,7 +157,7 @@
         _connecting = true;
         _reference ??= DotNetObjectReference.Create(this);
         _attachedRoom = _room.Id;
-        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton, _room.Id, _room, _reference); }
+        try { await JS.InvokeVoidAsync("veyraRoom.connect", _video, _audioElement, _participantGrid, _player, _fullscreenButton, _audioButton, _playButton, _switchButton, _shareButton, _volumeControl, _room.Id, _room, _reference); }
         catch (JSException) { _actionError = "The player could not start. Reload this page to try again."; }
         finally { _connecting = false; }
         if (!_disposed) StateHasChanged();

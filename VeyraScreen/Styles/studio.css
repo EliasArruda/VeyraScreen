@@ -178,6 +178,10 @@ button, a, select { touch-action: manipulation; }
 .live-player .preview-stage { aspect-ratio: 16 / 9; }
 .player-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--studio-line); background: var(--studio-surface); }
 .player-buttons { display: flex; align-items: center; gap: 4px; }
+.volume-control { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; color: var(--studio-muted); }
+.volume-control svg { width: 16px; height: 16px; }
+.volume-control input { width: 96px; accent-color: var(--primary); cursor: pointer; }
+.volume-control input:disabled { opacity: .45; cursor: not-allowed; }
 .player-button { min-width: 44px; min-height: 44px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 6px; background: transparent; color: var(--foreground); cursor: pointer; font: inherit; font-size: 11px; transition: background-color 160ms; }
 .player-button:hover:not(:disabled) { background: var(--muted); }
 .player-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -248,4 +252,5 @@ button, a, select { touch-action: manipulation; }
     .meeting-topbar .room-presence { gap: 6px; }
     .meeting-layout .preview-stage { min-height: 240px; }
     .meeting-layout .room-details { padding: 16px; }
+    .volume-control input { width: 76px; }
 }
