@@ -21,6 +21,26 @@
     }
 
     function fail(s, message) { s.error = message; notify(s); }
+    const iconPaths = {
+        watch: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/>',
+        sound: '<path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 9.5a4 4 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/>',
+        fullscreen: '<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5"/>',
+        exitFullscreen: '<path d="m9 3-6 6M15 3l6 6M9 21l-6-6M21 15l-6 6"/>'
+    };
+    function iconButton(name, label, className = "") {
+        const button = document.createElement("button");
+        button.type = "button"; button.className = className; button.title = label; button.setAttribute("aria-label", label);
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("fill", "none"); svg.setAttribute("stroke", "currentColor"); svg.setAttribute("stroke-width", "1.8"); svg.setAttribute("stroke-linecap", "round"); svg.setAttribute("stroke-linejoin", "round"); svg.setAttribute("aria-hidden", "true");
+        svg.innerHTML = iconPaths[name] ?? iconPaths.watch;
+        button.append(svg);
+        return button;
+    }
+    function setIcon(button, name, label) {
+        const svg = button?.querySelector("svg");
+        if (svg) svg.innerHTML = iconPaths[name] ?? iconPaths.watch;
+        if (button && label) { button.title = label; button.setAttribute("aria-label", label); }
+    }
     function closePeer(s, id) {
         const peer = s.peers.get(id);
         if (!peer) return;
@@ -46,7 +66,7 @@
         for (const [tileId, tile] of s.tiles) {
             tile.classList.toggle("is-selected", tileId === id);
             const watch = tile.querySelector(".participant-watch");
-            if (watch) watch.textContent = tileId === id ? "Watching" : "Watch";
+            if (watch) watch.setAttribute("aria-label", tileId === id ? "Currently watching" : `Watch participant ${tileId.slice(0, 6)}`);
         }
         const tileVideo = s.tiles.get(id)?.querySelector("video");
         const tileMute = s.tiles.get(id)?.querySelector(".participant-tile-controls button:nth-child(2)");
@@ -67,18 +87,18 @@
         const video = document.createElement("video"); video.autoplay = true; video.playsInline = true; video.muted = true; video.srcObject = stream;
         const label = document.createElement("span"); label.textContent = title;
         const controls = document.createElement("div"); controls.className = "participant-tile-controls";
-        const focus = document.createElement("button"); focus.type = "button"; focus.className = "participant-watch"; focus.textContent = "Watch"; focus.title = "Show this stream in the main player"; focus.setAttribute("aria-label", `Watch participant ${id.slice(0, 6)}`);
+        const focus = iconButton("watch", `Watch participant ${id.slice(0, 6)}`, "participant-watch");
         focus.addEventListener("click", () => focusStream(s, id, stream));
-        const mute = document.createElement("button"); mute.type = "button"; mute.textContent = "Sound"; mute.title = "Toggle this participant's audio"; mute.setAttribute("aria-label", `Toggle audio for participant ${id.slice(0, 6)}`);
+        const mute = iconButton("sound", `Toggle audio for participant ${id.slice(0, 6)}`);
         mute.addEventListener("click", () => {
             video.muted = !video.muted;
             if (s.audioElement?.srcObject === stream) s.audioElement.muted = video.muted;
-            mute.textContent = video.muted ? "Sound" : "Mute";
+            setIcon(mute, "sound", video.muted ? "Enable participant audio" : "Mute participant audio");
             video.play().catch(() => {});
         });
-        const fullscreen = document.createElement("button"); fullscreen.type = "button"; fullscreen.textContent = "Fullscreen"; fullscreen.title = "Open this stream fullscreen"; fullscreen.setAttribute("aria-label", `Fullscreen participant ${id.slice(0, 6)}`);
+        const fullscreen = iconButton("fullscreen", `Fullscreen participant ${id.slice(0, 6)}`);
         fullscreen.addEventListener("click", () => {
-            const request = tile.requestFullscreen?.();
+            const request = document.fullscreenElement === tile ? document.exitFullscreen() : tile.requestFullscreen?.();
             request?.catch(() => {});
         });
         tile.addEventListener("click", event => {
@@ -463,6 +483,10 @@
             });
             bind(s, document, "fullscreenchange", () => {
                 if (!document.fullscreenElement) stage.classList.remove("controls-visible");
+                for (const [tileId, tile] of s.tiles) {
+                    const button = tile.querySelector(".participant-tile-controls button:last-child");
+                    if (button) setIcon(button, document.fullscreenElement === tile ? "exitFullscreen" : "fullscreen", document.fullscreenElement === tile ? "Exit fullscreen" : `Fullscreen participant ${tileId.slice(0, 6)}`);
+                }
                 notify(s);
             });
             // In fullscreen the controls are hidden by default. Only show them

@@ -797,6 +797,11 @@ button, a, select {
   font-size: 10px;
   cursor: pointer;
 }
+.participant-tile-controls button svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
 .participant-tile-controls button:hover {
   background: rgb(255 255 255 / .18);
 }

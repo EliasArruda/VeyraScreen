@@ -82,6 +82,7 @@ button, a, select { touch-action: manipulation; }
 .participant-tile-controls button:nth-child(2), .participant-tile-controls button:nth-child(3) { opacity: 0; transition: opacity 160ms; }
 .participant-tile:hover .participant-tile-controls button:nth-child(2), .participant-tile:hover .participant-tile-controls button:nth-child(3), .participant-tile:focus-within .participant-tile-controls button:nth-child(2), .participant-tile:focus-within .participant-tile-controls button:nth-child(3) { opacity: 1; }
 .participant-tile-controls button { min-height: 30px; padding: 5px 8px; border: 1px solid rgb(255 255 255 / .25); border-radius: 4px; color: white; background: rgb(0 0 0 / .7); font: inherit; font-size: 10px; cursor: pointer; }
+.participant-tile-controls button svg { width: 15px; height: 15px; display: block; }
 .participant-tile-controls button:hover { background: rgb(255 255 255 / .18); }
 .participant-tile:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; background: #000; }
 .participant-tile:fullscreen video { object-fit: contain; }
