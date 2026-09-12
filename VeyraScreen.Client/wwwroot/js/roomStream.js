@@ -84,8 +84,13 @@
             s.local = await window.veyraScreen.startRoomShare(s.id, s.settings);
             s.sharing = true;
             await s.hub.invoke("SetSharing", true);
-            for (const [id, peer] of s.peers) {
-                for (const track of s.local.getTracks()) peer.pc.addTrack(track, s.local);
+            const participants = s.participants ?? [];
+            for (const id of participants) {
+                if (id === s.id) continue;
+                const peer = s.peers.get(id) ?? makePeer(s, id);
+                if (!peer.pc.getSenders().some(sender => sender.track?.kind === "video")) {
+                    for (const track of s.local.getTracks()) peer.pc.addTrack(track, s.local);
+                }
                 await offer(s, id, true);
             }
             s.status = "Sharing your screen";
@@ -258,6 +263,7 @@
             s.remoteHost = snapshot.hostId ?? null;
             if (!snapshot.live) { closePeers(s); s.status = "Waiting for the broadcaster"; }
         }
+        s.participants = snapshot.participants ?? [];
         notify(s);
     }
     async function publishSettings(s) {
@@ -314,7 +320,7 @@
             const s = {
                 id, local, token, isHost: !!local && !!token, sharing: !!local, video, audioElement, grid, tiles: new Map(), stage, receiver,
                 settings: { ...settings }, snapshot: { live: false, viewers: 0, hasAudio: false, audioMuted: false },
-                peers: new Map(), cleanup: [], audioMuted: false, ready: false, closed: false,
+                peers: new Map(), participants: [], cleanup: [], audioMuted: false, ready: false, closed: false,
                 status: "Connecting to room…", error: null, remoteHost: null,
                 hub: new signalR.HubConnectionBuilder().withUrl(new URL("hubs/rooms", document.baseURI).href)
                     .withAutomaticReconnect([0, 2000, 5000, 10000]).configureLogging(signalR.LogLevel.Error).build()
